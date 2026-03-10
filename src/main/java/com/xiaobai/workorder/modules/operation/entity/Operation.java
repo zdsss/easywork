@@ -1,0 +1,38 @@
+package com.xiaobai.workorder.modules.operation.entity;
+
+import com.baomidou.mybatisplus.annotation.*;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Data
+@TableName("operations")
+public class Operation {
+
+    @TableId(type = IdType.AUTO)
+    private Long id;
+
+    private Long workOrderId;
+    private String operationNumber;
+    private String operationName;
+    private String operationType;
+    private Integer sequenceNumber;
+    private BigDecimal plannedQuantity;
+    private BigDecimal completedQuantity;
+    private String status;
+    private Integer standardTime;
+    private Integer actualTime;
+    private String stationCode;
+    private String stationName;
+    private String notes;
+
+    @TableLogic
+    private Integer deleted;
+
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createdAt;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updatedAt;
+}
