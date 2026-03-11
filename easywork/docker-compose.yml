@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: workorder-postgres
+    environment:
+      POSTGRES_DB: workorder_db
+      POSTGRES_USER: workorder_user
+      POSTGRES_PASSWORD: workorder_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - workorder-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: workorder-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - workorder-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workorder-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/workorder_db
+      SPRING_DATASOURCE_USERNAME: workorder_user
+      SPRING_DATASOURCE_PASSWORD: workorder_pass
+      SPRING_DATA_REDIS_HOST: redis
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - workorder-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  workorder-network:
+    driver: bridge

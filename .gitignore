@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Java / Maven
+easywork/target/
+easywork/logs/
+*.class
+*.jar
+*.war
+
+# Node
+easywork-admin/node_modules/
+easywork-worker/node_modules/
+easywork-admin/dist/
+easywork-worker/dist/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Claude internal
+.claude/
