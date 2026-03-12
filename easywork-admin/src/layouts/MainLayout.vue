@@ -31,6 +31,10 @@
           <el-icon><CircleCheck /></el-icon>
           <span>质检管理</span>
         </el-menu-item>
+        <el-menu-item index="/calls">
+          <el-icon><Bell /></el-icon>
+          <span>呼叫管理</span>
+        </el-menu-item>
         <el-menu-item index="/mes">
           <el-icon><Connection /></el-icon>
           <span>MES 集成</span>
@@ -76,6 +80,7 @@ const pageTitleMap = {
   '/users': '用户管理',
   '/teams': '班组管理',
   '/inspection': '质检管理',
+  '/calls': '呼叫管理',
   '/mes': 'MES 集成',
 }
 

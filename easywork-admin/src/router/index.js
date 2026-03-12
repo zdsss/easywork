@@ -56,6 +56,11 @@ const routes = [
         name: 'Mes',
         component: () => import('@/views/MesView.vue'),
       },
+      {
+        path: 'calls',
+        name: 'Calls',
+        component: () => import('@/views/CallsView.vue'),
+      },
     ],
   },
   {
