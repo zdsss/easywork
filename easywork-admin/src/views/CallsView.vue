@@ -1,85 +1,19 @@
-<script setup>
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { getCalls, handleCall, completeCall } from '@/api/call'
-
-const calls = ref([])
-const loading = ref(false)
-const currentPage = ref(1)
-const pageSize = ref(20)
-const statusFilter = ref('')
-const completeDialogVisible = ref(false)
-const currentCallId = ref(null)
-const handleResult = ref('')
-
-const callTypeLabel = (type) => {
-  const map = { ANDON: '安灯呼叫', INSPECTION: '质检呼叫', TRANSPORT: '搬运呼叫' }
-  return map[type] || type
-}
-
-const statusLabel = (status) => {
-  const map = { NOT_HANDLED: '待处理', HANDLING: '处理中', HANDLED: '已完成' }
-  return map[status] || status
-}
-
-const statusType = (status) => {
-  const map = { NOT_HANDLED: 'danger', HANDLING: 'warning', HANDLED: 'success' }
-  return map[status] || ''
-}
-
-const loadCalls = async () => {
-  loading.value = true
-  try {
-    const params = { page: currentPage.value, size: pageSize.value }
-    if (statusFilter.value) params.status = statusFilter.value
-    calls.value = await getCalls(params)
-  } catch (e) {
-    // error shown by http interceptor
-  } finally {
-    loading.value = false
-  }
-}
-
-const onHandleCall = async (id) => {
-  try {
-    await handleCall(id)
-    ElMessage.success('已接单')
-    loadCalls()
-  } catch (e) {}
-}
-
-const openCompleteDialog = (id) => {
-  currentCallId.value = id
-  handleResult.value = ''
-  completeDialogVisible.value = true
-}
-
-const onCompleteCall = async () => {
-  try {
-    await completeCall(currentCallId.value, { handleResult: handleResult.value })
-    ElMessage.success('已完成处理')
-    completeDialogVisible.value = false
-    loadCalls()
-  } catch (e) {}
-}
-
-onMounted(loadCalls)
-</script>
-
 <template>
-  <div>
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px">
-      <h2 style="margin: 0">呼叫管理</h2>
-      <div style="display: flex; gap: 12px; align-items: center">
-        <el-select v-model="statusFilter" placeholder="全部状态" clearable style="width: 140px" @change="loadCalls">
-          <el-option label="全部" value="" />
-          <el-option label="待处理" value="NOT_HANDLED" />
-          <el-option label="处理中" value="HANDLING" />
-          <el-option label="已完成" value="HANDLED" />
-        </el-select>
-        <el-button @click="loadCalls">刷新</el-button>
+  <el-card shadow="never">
+    <template #header>
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <span>呼叫管理</span>
+        <div style="display: flex; gap: 12px; align-items: center">
+          <el-select v-model="statusFilter" placeholder="全部状态" clearable style="width: 140px" @change="loadCalls">
+            <el-option label="全部" value="" />
+            <el-option label="待处理" value="NOT_HANDLED" />
+            <el-option label="处理中" value="HANDLING" />
+            <el-option label="已完成" value="HANDLED" />
+          </el-select>
+          <el-button @click="loadCalls">刷新</el-button>
+        </div>
       </div>
-    </div>
+    </template>
 
     <el-table :data="calls" v-loading="loading" border>
       <el-table-column prop="id" label="ID" width="80" />
@@ -111,10 +45,8 @@ onMounted(loadCalls)
       <el-pagination
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 50]"
-        layout="total, sizes, prev, pager, next"
-        :total="calls.length"
-        @size-change="loadCalls"
+        layout="prev, pager, next"
+        :total="totalEstimate"
         @current-change="loadCalls"
       />
     </div>
@@ -127,8 +59,86 @@ onMounted(loadCalls)
       </el-form>
       <template #footer>
         <el-button @click="completeDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="onCompleteCall">确认完成</el-button>
+        <el-button type="primary" :loading="submitting" @click="onCompleteCall">确认完成</el-button>
       </template>
     </el-dialog>
-  </div>
+  </el-card>
 </template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { getCalls, handleCall, completeCall } from '@/api/call'
+
+const calls = ref([])
+const loading = ref(false)
+const submitting = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(20)
+const totalEstimate = ref(0)
+const statusFilter = ref('')
+const completeDialogVisible = ref(false)
+const currentCallId = ref(null)
+const handleResult = ref('')
+
+const callTypeLabel = (type) => {
+  const map = { ANDON: '安灯呼叫', INSPECTION: '质检呼叫', TRANSPORT: '搬运呼叫' }
+  return map[type] || type
+}
+
+const statusLabel = (status) => {
+  const map = { NOT_HANDLED: '待处理', HANDLING: '处理中', HANDLED: '已完成' }
+  return map[status] || status
+}
+
+const statusType = (status) => {
+  const map = { NOT_HANDLED: 'danger', HANDLING: 'warning', HANDLED: 'success' }
+  return map[status] || ''
+}
+
+const loadCalls = async () => {
+  loading.value = true
+  try {
+    const params = { page: currentPage.value, size: pageSize.value }
+    if (statusFilter.value) params.status = statusFilter.value
+    calls.value = await getCalls(params)
+    // Backend returns plain array; estimate total to enable pager navigation
+    totalEstimate.value = calls.value.length === pageSize.value
+      ? currentPage.value * pageSize.value + 1
+      : (currentPage.value - 1) * pageSize.value + calls.value.length
+  } catch (e) {
+    // error shown by http interceptor
+  } finally {
+    loading.value = false
+  }
+}
+
+const onHandleCall = async (id) => {
+  try {
+    await handleCall(id)
+    ElMessage.success('已接单')
+    loadCalls()
+  } catch (e) {}
+}
+
+const openCompleteDialog = (id) => {
+  currentCallId.value = id
+  handleResult.value = ''
+  completeDialogVisible.value = true
+}
+
+const onCompleteCall = async () => {
+  submitting.value = true
+  try {
+    await completeCall(currentCallId.value, { handleResult: handleResult.value })
+    ElMessage.success('已完成处理')
+    completeDialogVisible.value = false
+    loadCalls()
+  } catch (e) {
+  } finally {
+    submitting.value = false
+  }
+}
+
+onMounted(loadCalls)
+</script>
