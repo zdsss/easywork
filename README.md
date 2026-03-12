@@ -423,27 +423,31 @@ easywork-worker/
 
 ---
 
+
+---
+
 ## 九、启动方式
 
 ```bash
 # Step 1：启动数据库（PostgreSQL + Redis）
-cd /Users/monet/Program/Repo/easyworks/easywork
+cd easywork
 docker-compose up -d postgres redis
 
-# Step 2：启动后端（必须指定 Java 21）
-JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home \
+# Step 2：启动后端（需 Java 21）
+# Windows:      set JAVA_HOME=C:\path\to\jdk-21 && mvn spring-boot:run
+# macOS/Linux:  JAVA_HOME=/path/to/jdk-21 mvn spring-boot:run
+#
+# 若系统默认已是 Java 21，直接执行：
 mvn spring-boot:run
 
 # Step 3：启动管理端（新终端）
-cd /Users/monet/Program/Repo/easyworks/easywork-admin
+cd easywork-admin
 npm run dev   # → http://localhost:5173
 
 # Step 4：启动工人端（新终端）
-cd /Users/monet/Program/Repo/easyworks/easywork-worker
+cd easywork-worker
 npm run dev   # → http://localhost:5174
 ```
-
----
 
 ## 十、默认账号
 
