@@ -56,14 +56,19 @@ docker-compose up -d postgres redis
 ```
 
 ### 2. 启动应用
+### 2. 启动应用
 
-> 注意：必须使用 Java 21，系统默认 Java 版本若高于 21 需显式指定。
+> 注意：必须使用 Java 21。若系统默认版本不是 Java 21，需显式指定 JAVA_HOME。
+>
+> - **Windows：** `set JAVA_HOME=C:\path\to\jdk-21 && mvn spring-boot:run`
+> - **macOS/Linux：** `JAVA_HOME=/path/to/jdk-21 mvn spring-boot:run`
+>
+> 若系统默认已是 Java 21，直接执行：
 
 ```bash
-JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn spring-boot:run
+mvn spring-boot:run
 ```
 
-## 访问地址
 
 - API 基础地址：`http://localhost:8080`
 - Swagger 文档：`http://localhost:8080/swagger-ui.html`
