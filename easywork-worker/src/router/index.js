@@ -24,6 +24,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/scan',
+    name: 'Scan',
+    component: () => import('@/views/ScanView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/call',
     name: 'Call',
     component: () => import('@/views/CallView.vue'),
