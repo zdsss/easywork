@@ -17,4 +17,5 @@ public class CallRecordDTO {
     private LocalDateTime completeTime;
     private String description;
     private String handleResult;
+    private String notes;
 }

@@ -1,5 +1,6 @@
 package com.xiaobai.workorder.modules.call.controller;
 
+import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.common.response.ApiResponse;
 import com.xiaobai.workorder.common.util.SecurityUtils;
 import com.xiaobai.workorder.modules.call.dto.CallRecordDTO;
@@ -33,6 +34,9 @@ public class AdminCallController {
     @PutMapping("/{id}/handle")
     public ApiResponse<CallRecordDTO> handleCall(@PathVariable Long id) {
         Long handlerId = securityUtils.getCurrentUserId();
+        if (handlerId == null) {
+            throw new BusinessException("Unauthorized: cannot resolve current user");
+        }
         return ApiResponse.success(callService.handleCall(id, handlerId));
     }
 
@@ -42,6 +46,9 @@ public class AdminCallController {
             @PathVariable Long id,
             @RequestBody(required = false) HandleCallRequest request) {
         Long handlerId = securityUtils.getCurrentUserId();
+        if (handlerId == null) {
+            throw new BusinessException("Unauthorized: cannot resolve current user");
+        }
         String handleResult = request != null ? request.getHandleResult() : null;
         return ApiResponse.success(callService.completeCall(id, handlerId, handleResult));
     }

@@ -89,4 +89,25 @@ class TeamServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Team not found");
     }
+
+    @Test
+    void removeMember_validIds_deletesRecord() {
+        Team team = new Team();
+        team.setId(1L);
+        team.setDeleted(0);
+        when(teamMapper.selectById(1L)).thenReturn(team);
+
+        teamService.removeMember(1L, 10L);
+
+        verify(teamMemberMapper).delete(any());
+    }
+
+    @Test
+    void removeMember_teamNotFound_throwsException() {
+        when(teamMapper.selectById(99L)).thenReturn(null);
+
+        assertThatThrownBy(() -> teamService.removeMember(99L, 10L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Team not found");
+    }
 }

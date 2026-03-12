@@ -70,6 +70,9 @@ public class CallService {
         if (record == null || record.getDeleted() == 1) {
             throw new BusinessException("Call record not found: " + callId);
         }
+        if (!"HANDLING".equals(record.getStatus())) {
+            throw new BusinessException("Call must be in HANDLING status to complete");
+        }
         record.setStatus("HANDLED");
         record.setHandlerId(handlerId);
         record.setHandleResult(handleResult);
@@ -113,6 +116,7 @@ public class CallService {
         dto.setCompleteTime(record.getCompleteTime());
         dto.setDescription(record.getDescription());
         dto.setHandleResult(record.getHandleResult());
+        dto.setNotes(record.getNotes());
         return dto;
     }
 }

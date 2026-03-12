@@ -41,7 +41,20 @@ public class AdminTeamController {
     public ApiResponse<Void> addMembers(
             @PathVariable Long teamId,
             @RequestBody Map<String, List<Long>> body) {
-        teamService.addMembers(teamId, body.get("userIds"));
+        List<Long> userIds = body.get("userIds");
+        if (userIds == null || userIds.isEmpty()) {
+            return ApiResponse.success("No members to add", null);
+        }
+        teamService.addMembers(teamId, userIds);
         return ApiResponse.success("Members added", null);
+    }
+
+    @Operation(summary = "Remove a member from a team")
+    @DeleteMapping("/{teamId}/members/{userId}")
+    public ApiResponse<Void> removeMember(
+            @PathVariable Long teamId,
+            @PathVariable Long userId) {
+        teamService.removeMember(teamId, userId);
+        return ApiResponse.success("Member removed", null);
     }
 }

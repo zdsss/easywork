@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.modules.user.dto.CreateUserRequest;
+import com.xiaobai.workorder.modules.user.dto.UpdateUserRequest;
 import com.xiaobai.workorder.modules.user.dto.UserDTO;
 import com.xiaobai.workorder.modules.user.entity.User;
 import com.xiaobai.workorder.modules.user.repository.UserMapper;
@@ -59,6 +60,25 @@ public class UserService {
                 new Page<>(page, size),
                 new LambdaQueryWrapper<User>().eq(User::getDeleted, 0).orderByAsc(User::getId));
         return pageResult.getRecords().stream().map(this::toDTO).toList();
+    }
+
+    @Transactional
+    public UserDTO updateUser(Long userId, UpdateUserRequest request) {
+        User user = findById(userId);  // throws if not found
+        if (request.getUsername() != null) user.setUsername(request.getUsername());
+        if (request.getRealName() != null) user.setRealName(request.getRealName());
+        if (request.getPhone() != null) user.setPhone(request.getPhone());
+        if (request.getEmail() != null) user.setEmail(request.getEmail());
+        if (request.getRole() != null) user.setRole(request.getRole());
+        if (request.getStatus() != null) user.setStatus(request.getStatus());
+        userMapper.updateById(user);
+        return toDTO(user);
+    }
+
+    @Transactional
+    public void deleteUser(Long userId) {
+        User user = findById(userId);  // guard: throws BusinessException if not found or already deleted
+        userMapper.deleteById(userId);  // MyBatis-Plus @TableLogic handles soft delete
     }
 
     private UserDTO toDTO(User user) {

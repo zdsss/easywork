@@ -2,6 +2,7 @@ package com.xiaobai.workorder.modules.user.service;
 
 import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.modules.user.dto.CreateUserRequest;
+import com.xiaobai.workorder.modules.user.dto.UpdateUserRequest;
 import com.xiaobai.workorder.modules.user.dto.UserDTO;
 import com.xiaobai.workorder.modules.user.entity.User;
 import com.xiaobai.workorder.modules.user.repository.UserMapper;
@@ -95,5 +96,66 @@ class UserServiceTest {
         assertThatThrownBy(() -> userService.findById(5L))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("User not found");
+    }
+
+    @Test
+    void updateUser_partialFields_returnsUpdatedDTO() {
+        User user = buildUser(1L, "EMP001", "old-name");
+        when(userMapper.selectById(1L)).thenReturn(user);
+
+        UpdateUserRequest req = new UpdateUserRequest();
+        req.setRealName("new-name");
+        req.setPhone("13800138000");
+
+        UserDTO dto = userService.updateUser(1L, req);
+
+        assertThat(dto.getRealName()).isEqualTo("new-name");
+        assertThat(dto.getPhone()).isEqualTo("13800138000");
+        verify(userMapper).updateById(any(User.class));
+    }
+
+    @Test
+    void updateUser_notFound_throwsException() {
+        when(userMapper.selectById(99L)).thenReturn(null);
+
+        UpdateUserRequest req = new UpdateUserRequest();
+        req.setRealName("name");
+
+        assertThatThrownBy(() -> userService.updateUser(99L, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("User not found");
+    }
+
+    @Test
+    void deleteUser_existingUser_softDeletes() {
+        User user = buildUser(1L, "EMP001", "Employee One");
+        when(userMapper.selectById(1L)).thenReturn(user);
+
+        userService.deleteUser(1L);
+
+        verify(userMapper).deleteById(1L);
+    }
+
+    @Test
+    void deleteUser_notFound_throwsException() {
+        when(userMapper.selectById(99L)).thenReturn(null);
+
+        assertThatThrownBy(() -> userService.deleteUser(99L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("User not found");
+    }
+
+    // ---------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------
+
+    private User buildUser(Long id, String employeeNumber, String realName) {
+        User user = new User();
+        user.setId(id);
+        user.setEmployeeNumber(employeeNumber);
+        user.setRealName(realName);
+        user.setStatus("ACTIVE");
+        user.setDeleted(0);
+        return user;
     }
 }
