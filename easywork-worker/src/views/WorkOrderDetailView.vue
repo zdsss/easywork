@@ -74,19 +74,13 @@
           </van-button>
         </div>
       </div>
-    </div>
       <!-- 呼叫按鈕 -->
-      <div class='call-section'>
-        <van-button
-          round
-          block
-          type='warning'
-          icon='phone-o'
-          @click='goToCall'
-        >
+      <div class="call-section">
+        <van-button round block type="warning" icon="phone-o" @click="goToCall">
           发起呼叫
         </van-button>
       </div>
+    </div>
 
     <van-loading v-else-if="loading" vertical style="padding-top: 40%">加载中...</van-loading>
 
