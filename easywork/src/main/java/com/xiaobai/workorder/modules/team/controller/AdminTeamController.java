@@ -44,4 +44,13 @@ public class AdminTeamController {
         teamService.addMembers(teamId, body.get("userIds"));
         return ApiResponse.success("Members added", null);
     }
+
+    @Operation(summary = "Remove a member from a team")
+    @DeleteMapping("/{teamId}/members/{userId}")
+    public ApiResponse<Void> removeMember(
+            @PathVariable Long teamId,
+            @PathVariable Long userId) {
+        teamService.removeMember(teamId, userId);
+        return ApiResponse.success("Member removed", null);
+    }
 }

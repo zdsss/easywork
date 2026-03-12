@@ -83,6 +83,19 @@ public class TeamService {
         return teams.stream().map(this::toDTO).toList();
     }
 
+    @Transactional
+    public void removeMember(Long teamId, Long userId) {
+        Team team = teamMapper.selectById(teamId);
+        if (team == null || team.getDeleted() == 1) {
+            throw new BusinessException("Team not found: " + teamId);
+        }
+        teamMemberMapper.delete(
+            new LambdaQueryWrapper<TeamMember>()
+                .eq(TeamMember::getTeamId, teamId)
+                .eq(TeamMember::getUserId, userId)
+        );
+    }
+
     private TeamDTO toDTO(Team team) {
         TeamDTO dto = new TeamDTO();
         dto.setId(team.getId());
