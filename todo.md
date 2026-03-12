@@ -55,6 +55,20 @@
 
 ---
 
+## 任务 D：补充 macOS 工具路径文档（优先级：低）
+
+**问题**：`easywork/.claude.md` 的 macOS 工具路径栏目为"待补充"，跨平台协作时 Claude 无法在 macOS 上生成正确命令。
+
+- [ ] 在 macOS 机器上确认 Java 21 实际路径（Homebrew 或官方安装）
+- [ ] 在 macOS 机器上确认 Maven 实际路径
+- [ ] 更新 `easywork/.claude.md` 第 6.4 节 macOS 工具路径表格
+- [ ] 同步更新根目录 `CLAUDE.md`"Windows 工具路径"章节，新增 macOS 一栏
+- [ ] 提交并推送
+
+**验收**：`easywork/.claude.md` macOS 栏有实际路径；两端（Windows/macOS）均可通过 CLAUDE.md 找到完整命令。
+
+---
+
 ## 关键文件路径
 
 | 文件 | 路径 |
