@@ -55,13 +55,15 @@
           添加成员
         </el-button>
       </div>
-      <el-table :data="members" stripe>
-        <el-table-column prop="employeeNumber" label="员工号" width="140" />
+      <el-table :data="members" style="margin-top: 8px">
+        <el-table-column prop="employeeNumber" label="员工号" width="120" />
         <el-table-column prop="realName" label="姓名" />
+        <el-table-column label="操作" width="80">
+          <template #default="{ row }">
+            <el-button type="danger" size="small" link @click="handleRemoveMember(row.userId)">移除</el-button>
+          </template>
+        </el-table-column>
       </el-table>
-      <p style="margin-top: 8px; color: #999; font-size: 12px">
-        注：移除成员功能暂不支持，请联系管理员处理。
-      </p>
     </el-dialog>
   </el-card>
 </template>
@@ -69,8 +71,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { getTeams, createTeam, addTeamMembers } from '@/api/team'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { getTeams, createTeam, addTeamMembers, removeTeamMember } from '@/api/team'
 import { getUsers } from '@/api/user'
 
 const loading = ref(false)
@@ -152,6 +154,23 @@ async function handleAddMember() {
     // handled
   } finally {
     addingMember.value = false
+  }
+}
+
+const handleRemoveMember = async (userId) => {
+  try {
+    await ElMessageBox.confirm('确认移除该成员？', '提示', { type: 'warning' })
+    await removeTeamMember(activeTeam.value.id, userId)
+    ElMessage.success('成员已移除')
+    await loadData()
+    // refresh currentTeam data after reload
+    const updated = list.value.find((t) => t.id === activeTeam.value.id)
+    if (updated) {
+      members.value = updated.members ?? []
+      activeTeam.value = updated
+    }
+  } catch (e) {
+    if (e !== 'cancel') throw e
   }
 }
 
