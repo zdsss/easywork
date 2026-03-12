@@ -30,7 +30,7 @@
           :loading="reportLoading"
           :disabled="!barcode"
           @click="handleScanReport"
-          style="margin-top: 12px"
+          class="report-button"
         >
           扫码报工
         </van-button>
@@ -46,10 +46,10 @@
       </van-cell-group>
     </div>
 
-    <van-tabbar v-model="activeTab">
-      <van-tabbar-item name="workorders" icon="todo-list-o" to="/workorders">工单</van-tabbar-item>
-      <van-tabbar-item name="scan" icon="scan" to="/scan">扫码</van-tabbar-item>
-      <van-tabbar-item name="call" icon="phone-o" to="/call">呼叫</van-tabbar-item>
+    <van-tabbar route>
+      <van-tabbar-item icon="todo-list-o" to="/workorders">工单</van-tabbar-item>
+      <van-tabbar-item icon="scan" to="/scan">扫码</van-tabbar-item>
+      <van-tabbar-item icon="phone-o" to="/call">呼叫</van-tabbar-item>
     </van-tabbar>
   </div>
 </template>
@@ -63,7 +63,6 @@ const barcode = ref('')
 const startLoading = ref(false)
 const reportLoading = ref(false)
 const result = ref(null)
-const activeTab = ref('scan')
 
 const statusLabel = (status) => {
   const map = {
@@ -117,5 +116,8 @@ const handleScanReport = async () => {
 }
 .action-buttons {
   margin-top: 24px;
+}
+.report-button {
+  margin-top: 12px;
 }
 </style>
