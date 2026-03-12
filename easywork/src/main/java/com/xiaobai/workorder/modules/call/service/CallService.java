@@ -1,6 +1,9 @@
 package com.xiaobai.workorder.modules.call.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xiaobai.workorder.common.exception.BusinessException;
+import com.xiaobai.workorder.modules.call.dto.CallRecordDTO;
 import com.xiaobai.workorder.modules.call.dto.CallRequest;
 import com.xiaobai.workorder.modules.call.entity.CallRecord;
 import com.xiaobai.workorder.modules.call.repository.CallRecordMapper;
@@ -12,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,7 +49,7 @@ public class CallService {
     }
 
     @Transactional
-    public CallRecord handleCall(Long callId, Long handlerId) {
+    public CallRecordDTO handleCall(Long callId, Long handlerId) {
         CallRecord record = callRecordMapper.selectById(callId);
         if (record == null || record.getDeleted() == 1) {
             throw new BusinessException("Call record not found: " + callId);
@@ -56,11 +61,11 @@ public class CallService {
         record.setHandlerId(handlerId);
         record.setHandleTime(LocalDateTime.now());
         callRecordMapper.updateById(record);
-        return record;
+        return toDTO(record);
     }
 
     @Transactional
-    public CallRecord completeCall(Long callId, Long handlerId, String handleResult) {
+    public CallRecordDTO completeCall(Long callId, Long handlerId, String handleResult) {
         CallRecord record = callRecordMapper.selectById(callId);
         if (record == null || record.getDeleted() == 1) {
             throw new BusinessException("Call record not found: " + callId);
@@ -70,6 +75,44 @@ public class CallService {
         record.setHandleResult(handleResult);
         record.setCompleteTime(LocalDateTime.now());
         callRecordMapper.updateById(record);
-        return record;
+        return toDTO(record);
+    }
+
+    public List<CallRecordDTO> listCalls(int page, int size, String status) {
+        LambdaQueryWrapper<CallRecord> wrapper = new LambdaQueryWrapper<>();
+        if (status != null) {
+            wrapper.eq(CallRecord::getStatus, status);
+        }
+        wrapper.orderByDesc(CallRecord::getCallTime);
+
+        Page<CallRecord> pageResult = callRecordMapper.selectPage(new Page<>(page, size), wrapper);
+        return pageResult.getRecords().stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    public CallRecordDTO getCallById(Long callId) {
+        CallRecord record = callRecordMapper.selectById(callId);
+        if (record == null || record.getDeleted() == 1) {
+            throw new BusinessException("Call record not found: " + callId);
+        }
+        return toDTO(record);
+    }
+
+    private CallRecordDTO toDTO(CallRecord record) {
+        CallRecordDTO dto = new CallRecordDTO();
+        dto.setId(record.getId());
+        dto.setWorkOrderId(record.getWorkOrderId());
+        dto.setOperationId(record.getOperationId());
+        dto.setCallType(record.getCallType());
+        dto.setCallerId(record.getCallerId());
+        dto.setHandlerId(record.getHandlerId());
+        dto.setStatus(record.getStatus());
+        dto.setCallTime(record.getCallTime());
+        dto.setHandleTime(record.getHandleTime());
+        dto.setCompleteTime(record.getCompleteTime());
+        dto.setDescription(record.getDescription());
+        dto.setHandleResult(record.getHandleResult());
+        return dto;
     }
 }
