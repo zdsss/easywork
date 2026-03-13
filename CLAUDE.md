@@ -25,7 +25,7 @@ easyworks/
 - **启动命令**：`docker-compose up -d postgres redis` → 见下方"Windows 工具路径"运行命令
 - **Swagger**：`http://localhost:8080/swagger-ui.html`
 - **包路径**：`com.xiaobai.workorder`
-- **测试**：113 个单元测试，全部通过
+- **测试**：132 个单元测试，全部通过
 
 ### easywork-admin（管理端前端）
 - **技术栈**：Vue 3 / Vite / Element Plus / Vue Router / Pinia / Axios
@@ -103,18 +103,21 @@ Worker：http://localhost:5174
 | team | `modules/team` | 班组管理 |
 | device | `modules/device` | 工人端 BFF |
 | workorder | `modules/workorder` | 工单生命周期 |
+| operation | `modules/operation` | 工序 / 工序依赖 / 返工记录 |
 | report | `modules/report` | 报工状态机（核心） |
 | inspection | `modules/inspection` | 质检 |
 | call | `modules/call` | Andon 呼叫 |
 | statistics | `modules/statistics` | 统计看板 |
 | mesintegration | `modules/mesintegration` | MES 双向同步 |
+| audit | `modules/audit` | 操作审计日志（ISO 9001） |
 
 ---
 
 ## 工单状态流转
 
 ```
-NOT_STARTED → STARTED → REPORTED → INSPECT_PASSED / INSPECT_FAILED → COMPLETED
+NOT_STARTED → STARTED → REPORTED → INSPECT_PASSED → COMPLETED
+                                  → INSPECT_FAILED → (返工后重新报工)
 ```
 
 ---

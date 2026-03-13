@@ -13,6 +13,7 @@ import com.xiaobai.workorder.modules.device.service.DeviceService;
 import com.xiaobai.workorder.modules.inspection.entity.InspectionRecord;
 import com.xiaobai.workorder.modules.inspection.service.InspectionService;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
+import com.xiaobai.workorder.modules.operation.service.ReworkService;
 import com.xiaobai.workorder.modules.report.dto.ReportRequest;
 import com.xiaobai.workorder.modules.report.dto.UndoReportRequest;
 import com.xiaobai.workorder.modules.report.entity.ReportRecord;
@@ -57,6 +58,7 @@ class DeviceControllerTest {
     @MockBean DeviceService deviceService;
     @MockBean InspectionService inspectionService;
     @MockBean OperationMapper operationMapper;
+    @MockBean ReworkService reworkService;
     @MockBean SecurityUtils securityUtils;
     @MockBean JwtTokenProvider jwtTokenProvider;
     @MockBean UserDetailsServiceImpl userDetailsServiceImpl;
