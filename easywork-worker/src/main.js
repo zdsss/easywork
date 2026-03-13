@@ -12,4 +12,8 @@ app.use(createPinia())
 app.use(router)
 app.use(Vant)
 
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {})
+}
+
 app.mount('#app')

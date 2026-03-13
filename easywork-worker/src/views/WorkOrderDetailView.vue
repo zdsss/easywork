@@ -1,5 +1,11 @@
 <template>
   <div class="page">
+    <van-notice-bar
+      v-if="!isOnline"
+      color="#fff"
+      background="#ee0a24"
+      text="当前离线，操作将排队，恢复联网后自动提交"
+    />
     <van-nav-bar
       :title="workorder?.orderNumber ?? '工单详情'"
       left-arrow
@@ -197,11 +203,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { getWorkOrders, getInspectionDetail, createRework } from '@/api/workorder'
 import { startWork, reportWork, undoReport } from '@/api/report'
+import { useNetworkStatus } from '@/composables/useNetworkStatus'
+import { enqueue, processQueue } from '@/utils/offlineQueue'
+import http from '@/api/http'
 
 const route = useRoute()
 const router = useRouter()
@@ -216,6 +225,13 @@ const activeOp = ref(null)
 const reportForm = reactive({ reportedQuantity: '', qualifiedQuantity: '', defectQuantity: '', notes: '' })
 const undoForm = reactive({ undoReason: '' })
 const reworkForm = reactive({ reworkQuantity: '', reworkReason: '' })
+
+const { isOnline } = useNetworkStatus()
+
+// Auto-process queue when back online
+watch(isOnline, (online) => {
+  if (online) processQueue(http)
+})
 
 const statusMap = {
   NOT_STARTED: { label: '未开始', type: 'default' },
@@ -263,13 +279,21 @@ function goToCall() {
   router.push({ name: 'Call', query: { workOrderId: workorder.value?.id } })
 }
 async function handleStart(op) {
+  if (!isOnline.value) {
+    await enqueue({ method: 'post', url: '/device/start', body: { operationId: op.id }, label: '开工' })
+    showToast({ type: 'success', message: '已离线排队，联网后自动提交' })
+    return
+  }
   actionLoading[op.id] = true
   try {
     await startWork({ operationId: op.id })
     showToast({ type: 'success', message: '开工成功' })
     await loadWorkOrder()
-  } catch {
-    // handled
+  } catch (e) {
+    if (!e.response) {
+      await enqueue({ method: 'post', url: '/device/start', body: { operationId: op.id }, label: '开工' })
+      showToast({ type: 'success', message: '已离线排队，联网后自动提交' })
+    }
   } finally {
     actionLoading[op.id] = false
   }
@@ -301,7 +325,12 @@ async function handleReportConfirm(action) {
     showToast({ type: 'success', message: '报工成功' })
     await loadWorkOrder()
     return true
-  } catch {
+  } catch (e) {
+    if (!e.response) {
+      await enqueue({ method: 'post', url: '/device/report', body: payload, label: '报工' })
+      showToast({ type: 'success', message: '已离线排队，联网后自动提交' })
+      return true
+    }
     return false
   } finally {
     actionLoading[activeOp.value.id] = false
@@ -329,7 +358,12 @@ async function handleUndoConfirm(action) {
     showToast({ type: 'success', message: '撤销成功' })
     await loadWorkOrder()
     return true
-  } catch {
+  } catch (e) {
+    if (!e.response) {
+      await enqueue({ method: 'post', url: '/device/undo-report', body: { operationId: activeOp.value.id, undoReason: undoForm.undoReason }, label: '撤销报工' })
+      showToast({ type: 'success', message: '已离线排队，联网后自动提交' })
+      return true
+    }
     return false
   } finally {
     actionLoading[activeOp.value.id] = false
@@ -363,7 +397,12 @@ async function handleReworkConfirm(action) {
     showToast({ type: 'success', message: '返工记录已创建' })
     await loadWorkOrder()
     return true
-  } catch {
+  } catch (e) {
+    if (!e.response) {
+      await enqueue({ method: 'post', url: '/device/rework', body: { workOrderId: workorder.value.id, originalOperationId: activeOp.value.id, reworkQuantity: Number(reworkForm.reworkQuantity), reworkReason: reworkForm.reworkReason }, label: '返工' })
+      showToast({ type: 'success', message: '已离线排队，联网后自动提交' })
+      return true
+    }
     return false
   } finally {
     actionLoading[activeOp.value.id] = false
