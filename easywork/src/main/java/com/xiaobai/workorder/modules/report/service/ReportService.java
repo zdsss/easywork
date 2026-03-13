@@ -1,6 +1,8 @@
 package com.xiaobai.workorder.modules.report.service;
 
+import com.baomidou.mybatisplus.core.exceptions.MybatisPlusException;
 import com.xiaobai.workorder.common.exception.BusinessException;
+import com.xiaobai.workorder.modules.audit.aspect.Auditable;
 import com.xiaobai.workorder.modules.mesintegration.event.ReportRecordSavedEvent;
 import com.xiaobai.workorder.modules.mesintegration.event.WorkOrderStatusChangedEvent;
 import com.xiaobai.workorder.modules.operation.entity.Operation;
@@ -32,6 +34,7 @@ public class ReportService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
+    @Auditable(operation = "START_WORK", targetType = "OPERATION")
     public ReportRecord startWork(Long operationId, Long userId) {
         Operation operation = getOperationOrThrow(operationId);
 
@@ -40,9 +43,12 @@ public class ReportService {
         }
 
         operation.setStatus("STARTED");
-        operationMapper.updateById(operation);
+        try {
+            operationMapper.updateById(operation);
+        } catch (MybatisPlusException e) {
+            throw new BusinessException("Operation was modified by another user, please retry");
+        }
 
-        // Update work order status if this is the first operation to start
         updateWorkOrderStatusOnStart(operation.getWorkOrderId());
 
         log.info("Operation {} started by user {}", operationId, userId);

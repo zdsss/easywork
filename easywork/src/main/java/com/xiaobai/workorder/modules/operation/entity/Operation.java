@@ -27,6 +27,9 @@ public class Operation {
     private String stationName;
     private String notes;
 
+    @Version
+    private Integer version;
+
     @TableLogic
     private Integer deleted;
 
