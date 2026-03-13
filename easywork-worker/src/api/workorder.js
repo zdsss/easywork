@@ -11,3 +11,11 @@ export function getWorkOrder(id) {
 export function getInspectionDetail(workOrderId) {
   return http.get(`/device/inspections/${workOrderId}`)
 }
+
+export function createRework(data) {
+  return http.post('/device/rework', data)
+}
+
+export function getReworkHistory(workOrderId) {
+  return http.get(`/device/rework/${workOrderId}`)
+}

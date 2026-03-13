@@ -72,6 +72,17 @@
           >
             撤销报工
           </van-button>
+
+          <van-button
+            v-if="op.status === 'REPORTED' || op.status === 'INSPECT_FAILED'"
+            type="warning"
+            size="small"
+            plain
+            :loading="actionLoading[op.id]"
+            @click="openReworkDialog(op)"
+          >
+            返工
+          </van-button>
         </div>
       </div>
       <!-- 质检结果卡片 -->
@@ -158,6 +169,30 @@
         />
       </div>
     </van-dialog>
+
+    <!-- 返工弹窗 -->
+    <van-dialog
+      v-model:show="reworkVisible"
+      title="返工"
+      show-cancel-button
+      :before-close="handleReworkConfirm"
+    >
+      <div style="padding: 16px">
+        <van-field
+          v-model="reworkForm.reworkQuantity"
+          type="number"
+          label="返工数量"
+          placeholder="请输入返工数量"
+        />
+        <van-field
+          v-model="reworkForm.reworkReason"
+          label="返工原因"
+          type="textarea"
+          rows="3"
+          placeholder="请说明返工原因"
+        />
+      </div>
+    </van-dialog>
   </div>
 </template>
 
@@ -165,7 +200,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import { getWorkOrders, getInspectionDetail } from '@/api/workorder'
+import { getWorkOrders, getInspectionDetail, createRework } from '@/api/workorder'
 import { startWork, reportWork, undoReport } from '@/api/report'
 
 const route = useRoute()
@@ -176,9 +211,11 @@ const inspection = ref(null)
 const actionLoading = reactive({})
 const reportVisible = ref(false)
 const undoVisible = ref(false)
+const reworkVisible = ref(false)
 const activeOp = ref(null)
 const reportForm = reactive({ reportedQuantity: '', qualifiedQuantity: '', defectQuantity: '', notes: '' })
 const undoForm = reactive({ undoReason: '' })
+const reworkForm = reactive({ reworkQuantity: '', reworkReason: '' })
 
 const statusMap = {
   NOT_STARTED: { label: '未开始', type: 'default' },
@@ -290,6 +327,40 @@ async function handleUndoConfirm(action) {
       undoReason: undoForm.undoReason,
     })
     showToast({ type: 'success', message: '撤销成功' })
+    await loadWorkOrder()
+    return true
+  } catch {
+    return false
+  } finally {
+    actionLoading[activeOp.value.id] = false
+  }
+}
+
+function openReworkDialog(op) {
+  activeOp.value = op
+  Object.assign(reworkForm, { reworkQuantity: '', reworkReason: '' })
+  reworkVisible.value = true
+}
+
+async function handleReworkConfirm(action) {
+  if (action !== 'confirm') return true
+  if (!reworkForm.reworkQuantity) {
+    showToast('请输入返工数量')
+    return false
+  }
+  if (!reworkForm.reworkReason) {
+    showToast('请填写返工原因')
+    return false
+  }
+  actionLoading[activeOp.value.id] = true
+  try {
+    await createRework({
+      workOrderId: workorder.value.id,
+      originalOperationId: activeOp.value.id,
+      reworkQuantity: Number(reworkForm.reworkQuantity),
+      reworkReason: reworkForm.reworkReason,
+    })
+    showToast({ type: 'success', message: '返工记录已创建' })
     await loadWorkOrder()
     return true
   } catch {

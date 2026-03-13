@@ -12,7 +12,9 @@ import com.xiaobai.workorder.modules.call.service.CallService;
 import com.xiaobai.workorder.modules.inspection.entity.InspectionRecord;
 import com.xiaobai.workorder.modules.inspection.service.InspectionService;
 import com.xiaobai.workorder.modules.device.service.DeviceService;
+import com.xiaobai.workorder.modules.operation.entity.ReworkRecord;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
+import com.xiaobai.workorder.modules.operation.service.ReworkService;
 import com.xiaobai.workorder.modules.report.dto.ReportRequest;
 import com.xiaobai.workorder.modules.report.dto.UndoReportRequest;
 import com.xiaobai.workorder.modules.report.entity.ReportRecord;
@@ -25,6 +27,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +44,7 @@ public class DeviceController {
     private final CallService callService;
     private final DeviceService deviceService;
     private final InspectionService inspectionService;
+    private final ReworkService reworkService;
     private final OperationMapper operationMapper;
     private final SecurityUtils securityUtils;
 
@@ -225,6 +229,44 @@ public class DeviceController {
     @GetMapping("/inspections/{workOrderId}")
     public ApiResponse<InspectionRecord> getInspectionDetail(@PathVariable Long workOrderId) {
         return ApiResponse.success(inspectionService.getLatestByWorkOrderId(workOrderId));
+    }
+
+    @Operation(summary = "Create rework record")
+    @PostMapping("/rework")
+    public ApiResponse<ReworkRecord> createRework(@RequestBody Map<String, Object> body) {
+        Long workOrderId = getLong(body, "workOrderId");
+        Long originalOperationId = getLong(body, "originalOperationId");
+        BigDecimal reworkQuantity = getBigDecimal(body, "reworkQuantity");
+        String reworkReason = (String) body.get("reworkReason");
+
+        if (workOrderId == null || originalOperationId == null || reworkQuantity == null) {
+            throw new BusinessException("workOrderId, originalOperationId, and reworkQuantity are required");
+        }
+
+        ReworkRecord record = reworkService.createRework(
+            workOrderId, originalOperationId, null, reworkQuantity, reworkReason
+        );
+        return ApiResponse.success(record);
+    }
+
+    @Operation(summary = "Get rework history for a work order")
+    @GetMapping("/rework/{workOrderId}")
+    public ApiResponse<List<ReworkRecord>> getReworkHistory(@PathVariable Long workOrderId) {
+        return ApiResponse.success(reworkService.getByWorkOrder(workOrderId));
+    }
+
+    private Long getLong(Map<String, Object> body, String key) {
+        Object val = body.get(key);
+        if (val == null) return null;
+        if (val instanceof Number) return ((Number) val).longValue();
+        return Long.parseLong(val.toString());
+    }
+
+    private BigDecimal getBigDecimal(Map<String, Object> body, String key) {
+        Object val = body.get(key);
+        if (val == null) return null;
+        if (val instanceof BigDecimal) return (BigDecimal) val;
+        return new BigDecimal(val.toString());
     }
 
     private CallRequest buildCallRequest(Map<String, Object> body, String callType) {

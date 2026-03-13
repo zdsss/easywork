@@ -56,6 +56,7 @@ public class ReportService {
     }
 
     @Transactional
+    @Auditable(operation = "REPORT_WORK", targetType = "OPERATION")
     public ReportRecord reportWork(ReportRequest request, Long userId, Long deviceId) {
         // Pessimistic lock: prevent concurrent over-reporting on the same operation
         Operation operation = operationMapper.selectByIdForUpdate(request.getOperationId());
@@ -121,6 +122,7 @@ public class ReportService {
     }
 
     @Transactional
+    @Auditable(operation = "UNDO_REPORT", targetType = "OPERATION")
     public void undoReport(UndoReportRequest request, Long userId) {
         Operation operation = getOperationOrThrow(request.getOperationId());
 

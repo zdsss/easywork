@@ -1,6 +1,7 @@
 package com.xiaobai.workorder.modules.operation.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.xiaobai.workorder.modules.audit.aspect.Auditable;
 import com.xiaobai.workorder.modules.operation.entity.ReworkRecord;
 import com.xiaobai.workorder.modules.operation.repository.ReworkRecordMapper;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ public class ReworkService {
     private final ReworkRecordMapper mapper;
 
     @Transactional
+    @Auditable(operation = "CREATE_REWORK", targetType = "REWORK_RECORD")
     public ReworkRecord createRework(Long workOrderId, Long originalOpId, Long reworkOpId,
                                      BigDecimal quantity, String reason) {
         ReworkRecord record = new ReworkRecord();
