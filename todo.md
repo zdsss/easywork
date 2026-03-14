@@ -1,86 +1,42 @@
-# 待办任务（2026-03-12）
+# Todo
 
-> 来源：代码库审视报告，113 个测试全绿后的下一步工作。
-> **状态：全部完成（2026-03-12）**，测试数从 113 升至 116，全绿。
+## 待办
 
----
+### P1 — 工人端扫码页面
+- [ ] `easywork-worker/src/views/ScanView.vue` — 调用摄像头或接收扫码枪键盘输入
+- [ ] 路由注册 `/scan`，入口放在工单列表页顶部
+- [ ] 扫码后调用 `POST /device/scan/start` 或 `POST /device/scan/report`，自动跳转结果
 
-## 任务 A：工单产品名搜索全链路修复（优先级：高）✅
+### P1 — 工人端批量操作页面
+- [ ] `BatchView.vue` — 多选工序 + 批量开工/报工
+- [ ] 调用 `POST /device/batch/start` / `POST /device/batch/report`
 
-**问题**：搜索框存在但完全无效，后端也不支持此参数。
+### P2 — 管理端工单编辑
+- [ ] `WorkOrderEditView.vue` — 编辑工单基本信息（产品名/数量/时间/备注）
+- [ ] 需后端新增 `PUT /api/admin/work-orders/:id` 接口
 
-### 后端
-- [x] `WorkOrderService.listAllWorkOrders()` 签名增加 `String productName` 参数
-- [x] LambdaQueryWrapper 增加 `like` 条件（模糊匹配 `productName`）
-- [x] `AdminWorkOrderController.listWorkOrders()` 新增 `@RequestParam(required = false) String productName`，传给 Service
+### P2 — 统计看板增强
+- [ ] 按 orderType 分组展示完成率
+- [ ] 质检通过率趋势图（折线图）
 
-### 前端（easywork-admin）
-- [x] `WorkOrderListView.vue` 的 `loadData()` 中追加 `productName` 参数到请求
-
-### 测试
-- [x] `WorkOrderServiceTest` 新增 `should_filterByProductName_when_productNameProvided`
-- [x] `WorkOrderServiceTest` 新增 `should_returnAll_when_productNameIsNull`
-- [x] `AdminWorkOrderControllerTest` 修复 `listAllWorkOrders` mock 签名
-
-**验收**：输入产品名点击查询，列表按模糊匹配过滤；`mvn test` 全绿。
+### P3 — 工序依赖可视化
+- [ ] 管理端工单详情页：工序依赖关系用有向图展示（可用 Vue Flow 或 D3）
 
 ---
 
-## 任务 B：Dashboard 补充统计字段（优先级：中）✅
+## 已完成（2026-03-14）
 
-**问题**：后端 `StatisticsDTO` 已有字段，前端未展示。
-
-### 前端（easywork-admin）
-- [x] `DashboardView.vue` stats 数组增加第 5 张卡片：未开始工单数（`notStartedCount`）
-- [x] 新增完成率进度条：`overallCompletionRate`（BigDecimal，需 `* 100` 取整）
-- [x] 新增工单类型分布表格：展示 `typeStats`（工单类型 / 总数 / 已完成数）
-
-**验收**：Dashboard 显示 5 个卡片（含未开始）、完成率进度条、类型分布表格。
-
----
-
-## 任务 C：工人端质检结果详情（优先级：低）✅
-
-**问题**：质检通过/失败后，工人端看不到任何质检详情。
-
-### 后端
-- [x] `InspectionService` 新增 `getLatestByWorkOrderId(Long workOrderId)` 方法（按 `inspectionTime` 倒序取第一条）
-- [x] `DeviceController` 新增接口：`GET /api/device/inspections/{workOrderId}`，权限 WORKER 或 ADMIN
-
-### 前端（easywork-worker）
-- [x] `WorkOrderDetailView.vue` 当状态为 `INSPECT_PASSED` 或 `INSPECT_FAILED` 时显示质检结果卡片
-- [x] 卡片内容：检验结果、检验时间、合格数量、不合格数量、不合格原因
-
-### 测试
-- [x] `DeviceControllerTest` 新增 `should_return200_when_getInspectionDetail`
-
-**验收**：工单状态为质检通过/失败时，工人端详情页底部出现质检结果卡片；`mvn test` 全绿。
-
----
-
-## 任务 D：补充 macOS 工具路径文档（优先级：低）✅
-
-**问题**：`easywork/.claude.md` 的 macOS 工具路径栏目为"待补充"。
-
-- [x] 确认 macOS Java 21 路径：`/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home`
-- [x] 确认 macOS Maven 路径：`/opt/homebrew/bin/mvn`（3.9.13）
-- [x] 更新 `easywork/.claude.md` macOS 工具路径表格
-- [x] 同步更新根目录 `CLAUDE.md`，新增 macOS 一栏
-
-**验收**：`easywork/.claude.md` macOS 栏有实际路径；两端（Windows/macOS）均可通过 CLAUDE.md 找到完整命令。
-
----
-
-## 关键文件路径
-
-| 文件 | 路径 |
-|------|------|
-| WorkOrderService | `easywork/src/main/java/com/xiaobai/workorder/modules/workorder/service/WorkOrderService.java` |
-| AdminWorkOrderController | `easywork/src/main/java/com/xiaobai/workorder/modules/workorder/controller/AdminWorkOrderController.java` |
-| WorkOrderServiceTest | `easywork/src/test/java/com/xiaobai/workorder/modules/workorder/service/WorkOrderServiceTest.java` |
-| WorkOrderListView（管理端）| `easywork-admin/src/views/workorder/WorkOrderListView.vue` |
-| DashboardView | `easywork-admin/src/views/DashboardView.vue` |
-| InspectionService | `easywork/src/main/java/com/xiaobai/workorder/modules/inspection/service/InspectionService.java` |
-| DeviceController | `easywork/src/main/java/com/xiaobai/workorder/modules/device/controller/DeviceController.java` |
-| DeviceControllerTest | `easywork/src/test/java/com/xiaobai/workorder/modules/device/controller/DeviceControllerTest.java` |
-| WorkOrderDetailView（工人端）| `easywork-worker/src/views/WorkOrderDetailView.vue` |
+- [x] **P0** WorkOrderStatus 新增 SCRAPPED 终态（V1.5 migration）
+- [x] **P0** ReportService 按 orderType 分支处理状态流转
+- [x] **P0** ReportService 串行前置工序依赖检查
+- [x] **P0** OperationDependencyService.getPredecessors() 查询方向 Bug 修复
+- [x] **P0** DeviceController 扫码枪班组+用户优先级匹配逻辑补全
+- [x] **P0** 新增 POST /api/device/inspect（检验员工人端提交质检）
+- [x] **P0** InspectionService 扩展 REWORK/SCRAP 处理
+- [x] **P0** 工人端报工数量预填（剩余量）+ 上限校验
+- [x] **P1** 工人端检验工单显示「提交质检」按钮（替代「报工」）
+- [x] **P1** 工人端 / 管理端状态标签按 orderType 映射（statusLabel.js）
+- [x] **P1** T9 九键键盘集成到工人端登录页密码输入
+- [x] **P1** 管理端 InspectionView 改为只读（质检操作移至工人端）
+- [x] **P1** 管理端工单创建 orderType 选项修正（PRODUCTION/INSPECTION/TRANSPORT/ANDON）
+- [x] **P2** force-start-before-report 配置（默认 false）

@@ -116,8 +116,20 @@ Worker：http://localhost:5174
 ## 工单状态流转
 
 ```
-NOT_STARTED → STARTED → REPORTED → INSPECT_PASSED → COMPLETED
-                                  → INSPECT_FAILED → (返工后重新报工)
+生产工单 (PRODUCTION):
+  NOT_STARTED → STARTED → REPORTED → INSPECT_PASSED → COMPLETED
+                        ↑            → INSPECT_FAILED → (返工后重新报工)
+                        │            → SCRAPPED（报废终态）
+                        └──── 撤销报工（STARTED）
+
+检验工单 (INSPECTION):
+  NOT_STARTED → STARTED → COMPLETED（报工即完成，不走质检）
+
+转运工单 (TRANSPORT):
+  NOT_STARTED → STARTED → COMPLETED
+
+安灯工单 (ANDON):
+  NOT_STARTED → STARTED → COMPLETED
 ```
 
 ---
