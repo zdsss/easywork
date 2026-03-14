@@ -50,7 +50,15 @@ export function useHardwareInput({
     const now = Date.now()
     const key = e.key
 
-    // --- Scan gun detection (runs regardless of focus) ---
+    // When an input/textarea is focused, let ALL keys pass through natively.
+    // Scan gun detection is only meaningful when no input is focused (e.g. list
+    // view, detail view) – ScanView relies on its own @keyup.enter handler.
+    if (isInputFocused()) {
+      clearScanBuffer()
+      return
+    }
+
+    // --- Scan gun detection (only when no input is focused) ---
     if (isPrintable(key)) {
       const gap = now - lastCharTime
       if (lastCharTime > 0 && gap >= SCAN_THRESHOLD_MS) {
@@ -59,7 +67,7 @@ export function useHardwareInput({
       }
       scanBuffer.push({ char: key, time: now })
       lastCharTime = now
-      return // allow char to propagate to input
+      return
     }
 
     if (key === 'Enter') {
@@ -77,36 +85,23 @@ export function useHardwareInput({
         }
 
         if (allFast) {
-          // Scan gun confirmed
+          // Scan gun confirmed (no input was focused)
           e.preventDefault()
           e.stopPropagation()
-
-          // Clear focused input if any
-          const active = document.activeElement
-          if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
-            active.value = ''
-            active.dispatchEvent(new Event('input'))
-          }
-
           const barcode = buf.map(b => b.char).join('')
           if (onScan) onScan(barcode)
           return
         }
       }
 
-      // Not a scan gun Enter – handle as confirm if not in input
-      if (!isInputFocused()) {
-        e.preventDefault()
-        if (onConfirm) onConfirm()
-      }
+      // Not a scan gun Enter – treat as confirm
+      e.preventDefault()
+      if (onConfirm) onConfirm()
       return
     }
 
     // Non-printable, non-Enter key → reset scan buffer
     clearScanBuffer()
-
-    // Navigation / shortcuts only when not in an input
-    if (isInputFocused()) return
 
     if (key === 'ArrowUp') {
       e.preventDefault()

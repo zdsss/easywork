@@ -116,10 +116,11 @@ const scanHints = computed(() => [
 
 // Tab key toggles scan mode
 function handleTabKey(e) {
-  if (e.key === 'Tab') {
-    e.preventDefault()
-    scanMode.value = scanMode.value === 'start' ? 'report' : 'start'
-  }
+  if (e.key !== 'Tab') return
+  const tag = document.activeElement?.tagName?.toLowerCase()
+  if (tag === 'input' || tag === 'textarea') return
+  e.preventDefault()
+  scanMode.value = scanMode.value === 'start' ? 'report' : 'start'
 }
 onMounted(() => document.addEventListener('keydown', handleTabKey))
 onUnmounted(() => document.removeEventListener('keydown', handleTabKey))
