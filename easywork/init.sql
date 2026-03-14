@@ -122,6 +122,7 @@ CREATE TABLE operations (
     station_code VARCHAR(100),
     station_name VARCHAR(200),
     notes TEXT,
+    version INTEGER DEFAULT 0,
     deleted SMALLINT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -280,6 +281,61 @@ CREATE TABLE mes_order_mappings (
 CREATE INDEX idx_mes_order_mappings_local_order_id ON mes_order_mappings(local_order_id);
 CREATE INDEX idx_mes_order_mappings_mes_order_id ON mes_order_mappings(mes_order_id);
 CREATE INDEX idx_mes_order_mappings_sync_status ON mes_order_mappings(sync_status);
+
+-- Operation dependencies table (V1.1)
+CREATE TABLE operation_dependencies (
+    id BIGSERIAL PRIMARY KEY,
+    operation_id BIGINT NOT NULL,
+    predecessor_operation_id BIGINT NOT NULL,
+    dependency_type VARCHAR(20) NOT NULL CHECK (dependency_type IN ('SERIAL', 'PARALLEL', 'CONDITIONAL')),
+    condition_expression TEXT,
+    deleted INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (operation_id) REFERENCES operations(id),
+    FOREIGN KEY (predecessor_operation_id) REFERENCES operations(id)
+);
+
+CREATE INDEX idx_operation_dependencies_operation ON operation_dependencies(operation_id);
+CREATE INDEX idx_operation_dependencies_predecessor ON operation_dependencies(predecessor_operation_id);
+
+-- Rework records table (V1.2)
+CREATE TABLE rework_records (
+    id BIGSERIAL PRIMARY KEY,
+    work_order_id BIGINT NOT NULL,
+    original_operation_id BIGINT NOT NULL,
+    rework_operation_id BIGINT NOT NULL,
+    rework_quantity DECIMAL(10,2) NOT NULL,
+    rework_reason TEXT,
+    rework_times INTEGER DEFAULT 1,
+    deleted INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (work_order_id) REFERENCES work_orders(id),
+    FOREIGN KEY (original_operation_id) REFERENCES operations(id),
+    FOREIGN KEY (rework_operation_id) REFERENCES operations(id)
+);
+
+CREATE INDEX idx_rework_records_work_order ON rework_records(work_order_id);
+
+-- Operation audit logs table (V1.3)
+CREATE TABLE operation_logs (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    operation_type VARCHAR(50) NOT NULL,
+    target_type VARCHAR(50) NOT NULL,
+    target_id BIGINT NOT NULL,
+    before_state TEXT,
+    after_state TEXT,
+    ip_address VARCHAR(50),
+    device_id VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE INDEX idx_operation_logs_user ON operation_logs(user_id);
+CREATE INDEX idx_operation_logs_target ON operation_logs(target_type, target_id);
+CREATE INDEX idx_operation_logs_created ON operation_logs(created_at);
 
 -- Insert default admin user (password: admin123)
 INSERT INTO users (employee_number, username, password, real_name, role, status)
