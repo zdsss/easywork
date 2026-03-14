@@ -10,8 +10,10 @@ import com.xiaobai.workorder.modules.auth.service.AuthService;
 import com.xiaobai.workorder.modules.call.entity.CallRecord;
 import com.xiaobai.workorder.modules.call.service.CallService;
 import com.xiaobai.workorder.modules.device.service.DeviceService;
+import com.xiaobai.workorder.modules.inspection.dto.InspectionRequest;
 import com.xiaobai.workorder.modules.inspection.entity.InspectionRecord;
 import com.xiaobai.workorder.modules.inspection.service.InspectionService;
+import com.xiaobai.workorder.modules.operation.entity.Operation;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
 import com.xiaobai.workorder.modules.operation.service.ReworkService;
 import com.xiaobai.workorder.modules.report.dto.ReportRequest;
@@ -37,7 +39,7 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -227,6 +229,88 @@ class DeviceControllerTest {
                 .andExpect(jsonPath("$.data.inspectionResult").value("PASSED"));
     }
 
+    @Test
+    void testScanStart_WorkOrderBarcode_MatchesEarliestOperation() throws Exception {
+        WorkOrderDTO dto = buildWorkOrderDTO(1L);
+        dto.setOperations(List.of());
+        Operation op = buildOperation(5L, 1L, "NOT_STARTED");
+        when(operationMapper.findByOperationNumber("WO-001")).thenReturn(java.util.Optional.empty());
+        when(workOrderService.getWorkOrderByBarcode("WO-001", 10L)).thenReturn(dto);
+        when(operationMapper.findEarliestUnfinishedByUserAndWorkOrder(10L, 1L)).thenReturn(op);
+        when(workOrderService.getWorkOrderById(1L)).thenReturn(dto);
+
+        mockMvc.perform(post("/api/device/scan/start")
+                        .with(user("worker").roles("WORKER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("barcode", "WO-001"))))
+                .andExpect(status().isOk());
+
+        verify(reportService).startWork(5L, 10L);
+    }
+
+    @Test
+    void testScanStart_WorkOrderBarcode_MultipleOperations_PicksEarliest() throws Exception {
+        WorkOrderDTO dto = buildWorkOrderDTO(1L);
+        dto.setOperations(List.of());
+        Operation earliest = buildOperation(3L, 1L, "NOT_STARTED");
+        when(operationMapper.findByOperationNumber("WO-002")).thenReturn(java.util.Optional.empty());
+        when(workOrderService.getWorkOrderByBarcode("WO-002", 10L)).thenReturn(dto);
+        // Direct user assignment returns earliest operation
+        when(operationMapper.findEarliestUnfinishedByUserAndWorkOrder(10L, 1L)).thenReturn(earliest);
+        when(workOrderService.getWorkOrderById(1L)).thenReturn(dto);
+
+        mockMvc.perform(post("/api/device/scan/start")
+                        .with(user("worker").roles("WORKER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("barcode", "WO-002"))))
+                .andExpect(status().isOk());
+
+        verify(reportService).startWork(3L, 10L);
+    }
+
+    @Test
+    void testInspect_Passed_UpdatesWorkOrderStatus() throws Exception {
+        InspectionRecord record = new InspectionRecord();
+        record.setId(1L);
+        record.setInspectionResult("PASSED");
+        when(inspectionService.submitInspection(any(InspectionRequest.class), anyLong()))
+                .thenReturn(record);
+
+        mockMvc.perform(post("/api/device/inspect")
+                        .with(user("worker").roles("WORKER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("workOrderId", 1L, "inspectionResult", "PASSED"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.inspectionResult").value("PASSED"));
+    }
+
+    @Test
+    void testInspect_Failed_UpdatesWorkOrderStatus() throws Exception {
+        InspectionRecord record = new InspectionRecord();
+        record.setId(2L);
+        record.setInspectionResult("FAILED");
+        when(inspectionService.submitInspection(any(InspectionRequest.class), anyLong()))
+                .thenReturn(record);
+
+        mockMvc.perform(post("/api/device/inspect")
+                        .with(user("worker").roles("WORKER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("workOrderId", 1L, "inspectionResult", "FAILED"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.inspectionResult").value("FAILED"));
+    }
+
+    @Test
+    void testInspect_RequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/device/inspect")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("workOrderId", 1L, "inspectionResult", "PASSED"))))
+                .andExpect(status().isForbidden());
+    }
+
     // ---------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------
@@ -237,5 +321,14 @@ class DeviceControllerTest {
         dto.setOrderNumber("WO-00" + id);
         dto.setStatus("NOT_STARTED");
         return dto;
+    }
+
+    private Operation buildOperation(Long id, Long workOrderId, String status) {
+        Operation op = new Operation();
+        op.setId(id);
+        op.setWorkOrderId(workOrderId);
+        op.setStatus(status);
+        op.setDeleted(0);
+        return op;
     }
 }

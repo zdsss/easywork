@@ -13,9 +13,27 @@
 </template>
 
 <script setup>
+import { watch } from 'vue'
 import { useT9Input } from '@/composables/useT9Input'
 
+const props = defineProps({
+  modelValue: { type: String, default: undefined },
+})
+const emit = defineEmits(['update:modelValue'])
+
 const { value, press, backspace, clear, toggleCase, uppercase } = useT9Input()
+
+// Sync external v-model to internal value
+watch(() => props.modelValue, (v) => {
+  if (v !== undefined && v !== value.value) {
+    value.value = v
+  }
+})
+
+// Emit internal changes to parent
+watch(value, (v) => {
+  emit('update:modelValue', v)
+})
 
 let longPressTimer = null
 

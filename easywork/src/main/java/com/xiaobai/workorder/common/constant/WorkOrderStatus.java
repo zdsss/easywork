@@ -6,5 +6,6 @@ public enum WorkOrderStatus {
     REPORTED,
     INSPECT_PASSED,
     INSPECT_FAILED,
+    SCRAPPED,
     COMPLETED
 }

@@ -19,3 +19,7 @@ export function createRework(data) {
 export function getReworkHistory(workOrderId) {
   return http.get(`/device/rework/${workOrderId}`)
 }
+
+export function submitInspection(data) {
+  return http.post('/device/inspect', data)
+}

@@ -29,7 +29,7 @@
             <van-checkbox v-if="batchMode" v-model="order.checked" @click.stop />
             <div class="card-header">
               <span class="order-number">{{ order.orderNumber }}</span>
-              <van-tag :type="statusTagType(order.status)">{{ statusLabel(order.status) }}</van-tag>
+              <van-tag :type="getStatusTagType(order)">{{ getStatusLabel(order) }}</van-tag>
             </div>
             <div class="card-body">
               <div class="info-row">
@@ -74,6 +74,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getWorkOrders } from '@/api/workorder'
 import { showToast, showConfirmDialog } from 'vant'
+import { getStatusLabel, getStatusTagType } from '@/utils/statusLabel'
 import http from '@/api/http'
 
 const router = useRouter()
@@ -146,21 +147,6 @@ async function batchReport() {
   } catch {}
 }
 
-const statusMap = {
-  NOT_STARTED: { label: '未开始', type: 'default' },
-  STARTED: { label: '进行中', type: 'primary' },
-  REPORTED: { label: '已报工', type: 'warning' },
-  INSPECT_PASSED: { label: '质检通过', type: 'success' },
-  INSPECT_FAILED: { label: '质检失败', type: 'danger' },
-  COMPLETED: { label: '已完成', type: 'success' },
-}
-
-function statusLabel(s) {
-  return statusMap[s]?.label ?? s
-}
-function statusTagType(s) {
-  return statusMap[s]?.type ?? 'default'
-}
 function formatDate(val) {
   if (!val) return '-'
   const d = new Date(val)

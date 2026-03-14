@@ -101,6 +101,30 @@ class InspectionServiceTest {
         verify(eventPublisher).publishEvent(any(WorkOrderStatusChangedEvent.class));
     }
 
+    @Test
+    void testSubmitInspection_Rework_SetsInspectFailed() {
+        WorkOrder wo = buildWorkOrder(1L, "REPORTED");
+        when(workOrderMapper.selectById(1L)).thenReturn(wo);
+
+        InspectionRequest req = buildRequest(1L, "REWORK");
+
+        inspectionService.submitInspection(req, 99L);
+
+        assertThat(wo.getStatus()).isEqualTo("INSPECT_FAILED");
+    }
+
+    @Test
+    void testSubmitInspection_Scrap_SetsScrapped() {
+        WorkOrder wo = buildWorkOrder(1L, "REPORTED");
+        when(workOrderMapper.selectById(1L)).thenReturn(wo);
+
+        InspectionRequest req = buildRequest(1L, "SCRAP_MATERIAL");
+
+        inspectionService.submitInspection(req, 99L);
+
+        assertThat(wo.getStatus()).isEqualTo("SCRAPPED");
+    }
+
     // ---------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------

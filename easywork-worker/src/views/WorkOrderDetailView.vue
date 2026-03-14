@@ -24,7 +24,7 @@
         <van-cell title="优先级" :value="workorder.priority" />
         <van-cell title="状态">
           <template #value>
-            <van-tag :type="statusTagType(workorder.status)">{{ statusLabel(workorder.status) }}</van-tag>
+            <van-tag :type="getStatusTagType(workorder)">{{ getStatusLabel(workorder) }}</van-tag>
           </template>
         </van-cell>
       </van-cell-group>
@@ -39,7 +39,7 @@
       >
         <div class="op-header">
           <span class="op-name">{{ op.operationName }}</span>
-          <van-tag :type="statusTagType(op.status)" size="small">{{ statusLabel(op.status) }}</van-tag>
+          <van-tag :type="getStatusTagType(null, op.status)" size="small">{{ getStatusLabel(null, op.status) }}</van-tag>
         </div>
         <div class="op-info">
           <span>计划：{{ op.plannedQuantity }}</span>
@@ -58,8 +58,20 @@
             开工
           </van-button>
 
+          <!-- 检验工单：STARTED 时显示「提交质检」替代「报工」 -->
           <van-button
-            v-if="op.status === 'STARTED'"
+            v-if="op.status === 'STARTED' && workorder.orderType === 'INSPECTION'"
+            type="success"
+            size="small"
+            :loading="actionLoading[op.id]"
+            @click="openInspectDialog(op)"
+          >
+            提交质检
+          </van-button>
+
+          <!-- 非检验工单：STARTED 时显示「报工」 -->
+          <van-button
+            v-if="op.status === 'STARTED' && workorder.orderType !== 'INSPECTION'"
             type="warning"
             size="small"
             :loading="actionLoading[op.id]"
@@ -139,6 +151,7 @@
           type="number"
           label="报工数量"
           placeholder="请输入数量"
+          :rules="[{ validator: validateReportQty, message: `数量需大于0且不超过剩余量${reportMaxQty}` }]"
         />
         <van-field
           v-model="reportForm.qualifiedQuantity"
@@ -199,17 +212,70 @@
         />
       </div>
     </van-dialog>
+
+    <!-- 质检弹窗（检验工单专用） -->
+    <van-dialog
+      v-model:show="inspectVisible"
+      title="提交质检结果"
+      show-cancel-button
+      :before-close="handleInspectConfirm"
+    >
+      <div style="padding: 16px">
+        <van-field label="检验结果" required>
+          <template #input>
+            <van-radio-group v-model="inspectForm.inspectionResult" direction="horizontal">
+              <van-radio name="PASSED">合格</van-radio>
+              <van-radio name="FAILED">不合格</van-radio>
+              <van-radio name="REWORK">返工</van-radio>
+              <van-radio name="SCRAP_MATERIAL">料废</van-radio>
+              <van-radio name="SCRAP_PROCESS">工废</van-radio>
+            </van-radio-group>
+          </template>
+        </van-field>
+        <van-field
+          v-model="inspectForm.inspectedQuantity"
+          type="number"
+          label="检验数量"
+          placeholder="可选"
+        />
+        <van-field
+          v-model="inspectForm.qualifiedQuantity"
+          type="number"
+          label="合格数量"
+          placeholder="可选"
+        />
+        <van-field
+          v-model="inspectForm.defectQuantity"
+          type="number"
+          label="不合格数量"
+          placeholder="可选"
+        />
+        <van-field
+          v-model="inspectForm.defectReason"
+          label="不合格原因"
+          type="textarea"
+          rows="2"
+          placeholder="可选"
+        />
+        <van-field
+          v-model="inspectForm.notes"
+          label="备注"
+          placeholder="可选"
+        />
+      </div>
+    </van-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import { getWorkOrders, getInspectionDetail, createRework } from '@/api/workorder'
+import { getWorkOrders, getInspectionDetail, createRework, submitInspection } from '@/api/workorder'
 import { startWork, reportWork, undoReport } from '@/api/report'
 import { useNetworkStatus } from '@/composables/useNetworkStatus'
 import { enqueue, processQueue } from '@/utils/offlineQueue'
+import { getStatusLabel, getStatusTagType } from '@/utils/statusLabel'
 import http from '@/api/http'
 
 const route = useRoute()
@@ -221,10 +287,19 @@ const actionLoading = reactive({})
 const reportVisible = ref(false)
 const undoVisible = ref(false)
 const reworkVisible = ref(false)
+const inspectVisible = ref(false)
 const activeOp = ref(null)
 const reportForm = reactive({ reportedQuantity: '', qualifiedQuantity: '', defectQuantity: '', notes: '' })
 const undoForm = reactive({ undoReason: '' })
 const reworkForm = reactive({ reworkQuantity: '', reworkReason: '' })
+const inspectForm = reactive({
+  inspectionResult: 'PASSED',
+  inspectedQuantity: '',
+  qualifiedQuantity: '',
+  defectQuantity: '',
+  defectReason: '',
+  notes: '',
+})
 
 const { isOnline } = useNetworkStatus()
 
@@ -233,16 +308,16 @@ watch(isOnline, (online) => {
   if (online) processQueue(http)
 })
 
-const statusMap = {
-  NOT_STARTED: { label: '未开始', type: 'default' },
-  STARTED: { label: '进行中', type: 'primary' },
-  REPORTED: { label: '已报工', type: 'warning' },
-  INSPECT_PASSED: { label: '质检通过', type: 'success' },
-  INSPECT_FAILED: { label: '质检失败', type: 'danger' },
-  COMPLETED: { label: '已完成', type: 'success' },
+// Computed remaining quantity for the active operation
+const reportMaxQty = computed(() => {
+  if (!activeOp.value) return Infinity
+  return Number(activeOp.value.plannedQuantity) - Number(activeOp.value.completedQuantity)
+})
+
+function validateReportQty(val) {
+  const n = Number(val)
+  return n > 0 && n <= reportMaxQty.value
 }
-function statusLabel(s) { return statusMap[s]?.label ?? s }
-function statusTagType(s) { return statusMap[s]?.type ?? 'default' }
 
 function formatDate(val) {
   if (!val) return '-'
@@ -301,7 +376,13 @@ async function handleStart(op) {
 
 function openReportDialog(op) {
   activeOp.value = op
-  Object.assign(reportForm, { reportedQuantity: '', qualifiedQuantity: '', defectQuantity: '', notes: '' })
+  const remaining = Number(op.plannedQuantity) - Number(op.completedQuantity)
+  Object.assign(reportForm, {
+    reportedQuantity: remaining > 0 ? String(remaining) : '',
+    qualifiedQuantity: '',
+    defectQuantity: '',
+    notes: '',
+  })
   reportVisible.value = true
 }
 
@@ -311,16 +392,24 @@ async function handleReportConfirm(action) {
     showToast('请输入报工数量')
     return false
   }
+  const qty = Number(reportForm.reportedQuantity)
+  if (qty <= 0) {
+    showToast('报工数量必须大于0')
+    return false
+  }
+  if (qty > reportMaxQty.value) {
+    showToast(`报工数量不能超过剩余量 ${reportMaxQty.value}`)
+    return false
+  }
   actionLoading[activeOp.value.id] = true
+  const payload = {
+    operationId: activeOp.value.id,
+    reportedQuantity: qty,
+  }
+  if (reportForm.qualifiedQuantity) payload.qualifiedQuantity = Number(reportForm.qualifiedQuantity)
+  if (reportForm.defectQuantity) payload.defectQuantity = Number(reportForm.defectQuantity)
+  if (reportForm.notes) payload.notes = reportForm.notes
   try {
-    const payload = {
-      operationId: activeOp.value.id,
-      reportedQuantity: Number(reportForm.reportedQuantity),
-    }
-    if (reportForm.qualifiedQuantity) payload.qualifiedQuantity = Number(reportForm.qualifiedQuantity)
-    if (reportForm.defectQuantity) payload.defectQuantity = Number(reportForm.defectQuantity)
-    if (reportForm.notes) payload.notes = reportForm.notes
-
     await reportWork(payload)
     showToast({ type: 'success', message: '报工成功' })
     await loadWorkOrder()
@@ -403,6 +492,47 @@ async function handleReworkConfirm(action) {
       showToast({ type: 'success', message: '已离线排队，联网后自动提交' })
       return true
     }
+    return false
+  } finally {
+    actionLoading[activeOp.value.id] = false
+  }
+}
+
+function openInspectDialog(op) {
+  activeOp.value = op
+  Object.assign(inspectForm, {
+    inspectionResult: 'PASSED',
+    inspectedQuantity: '',
+    qualifiedQuantity: '',
+    defectQuantity: '',
+    defectReason: '',
+    notes: '',
+  })
+  inspectVisible.value = true
+}
+
+async function handleInspectConfirm(action) {
+  if (action !== 'confirm') return true
+  if (!inspectForm.inspectionResult) {
+    showToast('请选择检验结果')
+    return false
+  }
+  actionLoading[activeOp.value.id] = true
+  try {
+    await submitInspection({
+      workOrderId: workorder.value.id,
+      operationId: activeOp.value.id,
+      inspectionResult: inspectForm.inspectionResult,
+      ...(inspectForm.inspectedQuantity && { inspectedQuantity: Number(inspectForm.inspectedQuantity) }),
+      ...(inspectForm.qualifiedQuantity && { qualifiedQuantity: Number(inspectForm.qualifiedQuantity) }),
+      ...(inspectForm.defectQuantity && { defectQuantity: Number(inspectForm.defectQuantity) }),
+      ...(inspectForm.defectReason && { defectReason: inspectForm.defectReason }),
+      ...(inspectForm.notes && { notes: inspectForm.notes }),
+    })
+    showToast({ type: 'success', message: '质检结果已提交' })
+    await loadWorkOrder()
+    return true
+  } catch {
     return false
   } finally {
     actionLoading[activeOp.value.id] = false

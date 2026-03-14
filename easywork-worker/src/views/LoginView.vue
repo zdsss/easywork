@@ -14,12 +14,14 @@
           placeholder="请输入员工号"
           :rules="[{ required: true, message: '请填写员工号' }]"
         />
+        <!-- 密码使用 T9 九宫格键盘输入 -->
         <van-field
-          v-model="form.password"
+          :model-value="form.password"
           type="password"
           name="password"
           label="密码"
-          placeholder="请输入密码"
+          placeholder="请使用下方键盘输入"
+          readonly
           :rules="[{ required: true, message: '请填写密码' }]"
         />
         <van-field
@@ -30,7 +32,12 @@
         />
       </van-cell-group>
 
-      <div style="margin: 24px 16px">
+      <!-- T9 九宫格密码键盘 -->
+      <div style="margin: 0 16px 8px">
+        <T9Input v-model="form.password" />
+      </div>
+
+      <div style="margin: 12px 16px">
         <van-button
           round
           block
@@ -51,6 +58,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { useAuthStore } from '@/stores/auth'
+import T9Input from '@/components/T9Input.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

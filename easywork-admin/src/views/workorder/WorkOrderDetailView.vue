@@ -6,8 +6,8 @@
       <template #header>
         <div style="display: flex; justify-content: space-between; align-items: center">
           <span>工单详情 — {{ workorder.orderNumber }}</span>
-          <el-tag :type="statusTagType(workorder.status)" size="large">
-            {{ statusLabel(workorder.status) }}
+          <el-tag :type="getStatusTagType(workorder)" size="large">
+            {{ getStatusLabel(workorder) }}
           </el-tag>
         </div>
       </template>
@@ -52,7 +52,7 @@
         <el-table-column prop="completedQuantity" label="完成数量" width="100" />
         <el-table-column prop="status" label="状态" width="120">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+            <el-tag :type="getStatusTagType(null, row.status)" size="small">{{ getStatusLabel(null, row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="派工" width="100">
@@ -161,6 +161,7 @@ import { getWorkOrder, assignWorkOrder, completeWorkOrder, reopenWorkOrder } fro
 import { getUsers } from '@/api/user'
 import { getTeams } from '@/api/team'
 import { getDependencies, addDependency } from '@/api/dependency'
+import { getStatusLabel, getStatusTagType } from '@/utils/statusLabel'
 
 const route = useRoute()
 const loading = ref(false)
@@ -185,21 +186,6 @@ const deps = ref([])
 const addingDep = ref(false)
 const depForm = reactive({ predecessorId: null, type: 'SERIAL', condition: '' })
 
-const statusOptions = [
-  { value: 'NOT_STARTED', label: '未开始', type: 'info' },
-  { value: 'STARTED', label: '进行中', type: 'primary' },
-  { value: 'REPORTED', label: '已报工', type: 'warning' },
-  { value: 'INSPECT_PASSED', label: '质检通过', type: 'success' },
-  { value: 'INSPECT_FAILED', label: '质检失败', type: 'danger' },
-  { value: 'COMPLETED', label: '已完成', type: 'success' },
-]
-
-function statusLabel(status) {
-  return statusOptions.find((s) => s.value === status)?.label ?? status
-}
-function statusTagType(status) {
-  return statusOptions.find((s) => s.value === status)?.type ?? ''
-}
 function formatDate(val) {
   if (!val) return '-'
   return new Date(val).toLocaleString('zh-CN', { hour12: false })

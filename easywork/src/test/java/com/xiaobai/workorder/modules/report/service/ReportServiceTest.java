@@ -4,6 +4,8 @@ import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.modules.mesintegration.event.ReportRecordSavedEvent;
 import com.xiaobai.workorder.modules.mesintegration.event.WorkOrderStatusChangedEvent;
 import com.xiaobai.workorder.modules.operation.entity.Operation;
+import com.xiaobai.workorder.modules.operation.entity.OperationDependency;
+import com.xiaobai.workorder.modules.operation.repository.OperationDependencyMapper;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
 import com.xiaobai.workorder.modules.report.dto.ReportRequest;
 import com.xiaobai.workorder.modules.report.dto.UndoReportRequest;
@@ -35,6 +37,7 @@ class ReportServiceTest {
     @Mock OperationMapper operationMapper;
     @Mock WorkOrderMapper workOrderMapper;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock OperationDependencyMapper operationDependencyMapper;
 
     @InjectMocks ReportService reportService;
 
@@ -298,6 +301,150 @@ class ReportServiceTest {
         assertThatThrownBy(() -> reportService.undoReport(req, 10L))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Operation not found");
+    }
+
+    // ---------------------------------------------------------------
+    // orderType branching tests
+    // ---------------------------------------------------------------
+
+    @Test
+    void testReportWork_InspectionOrder_DirectlyCompletes() {
+        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        WorkOrder wo = buildWorkOrder(1L, "STARTED");
+        wo.setOrderType("INSPECTION");
+        when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
+        when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.ZERO);
+        when(workOrderMapper.selectById(1L)).thenReturn(wo);
+
+        Operation reportedOp = buildOperation(1L, 1L, "REPORTED", BigDecimal.TEN);
+        reportedOp.setCompletedQuantity(BigDecimal.TEN);
+        when(operationMapper.findByWorkOrderId(1L)).thenReturn(List.of(reportedOp));
+
+        ReportRequest req = new ReportRequest();
+        req.setOperationId(1L);
+        req.setReportedQuantity(BigDecimal.TEN);
+
+        reportService.reportWork(req, 10L, null);
+
+        // INSPECTION order should go directly to COMPLETED, not REPORTED
+        assertThat(wo.getStatus()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void testReportWork_TransportOrder_DirectlyCompletes() {
+        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        WorkOrder wo = buildWorkOrder(1L, "STARTED");
+        wo.setOrderType("TRANSPORT");
+        when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
+        when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.ZERO);
+        when(workOrderMapper.selectById(1L)).thenReturn(wo);
+
+        Operation reportedOp = buildOperation(1L, 1L, "REPORTED", BigDecimal.TEN);
+        reportedOp.setCompletedQuantity(BigDecimal.TEN);
+        when(operationMapper.findByWorkOrderId(1L)).thenReturn(List.of(reportedOp));
+
+        ReportRequest req = new ReportRequest();
+        req.setOperationId(1L);
+        req.setReportedQuantity(BigDecimal.TEN);
+
+        reportService.reportWork(req, 10L, null);
+
+        assertThat(wo.getStatus()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void testReportWork_ProductionOrder_GoesToReported() {
+        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        WorkOrder wo = buildWorkOrder(1L, "STARTED");
+        wo.setOrderType("PRODUCTION");
+        when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
+        when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.ZERO);
+        when(workOrderMapper.selectById(1L)).thenReturn(wo);
+
+        Operation reportedOp = buildOperation(1L, 1L, "REPORTED", BigDecimal.TEN);
+        reportedOp.setCompletedQuantity(BigDecimal.TEN);
+        when(operationMapper.findByWorkOrderId(1L)).thenReturn(List.of(reportedOp));
+
+        ReportRequest req = new ReportRequest();
+        req.setOperationId(1L);
+        req.setReportedQuantity(BigDecimal.TEN);
+
+        reportService.reportWork(req, 10L, null);
+
+        // PRODUCTION order goes to REPORTED (awaiting inspection)
+        assertThat(wo.getStatus()).isEqualTo("REPORTED");
+    }
+
+    @Test
+    void testReportWork_ForceStartDisabled_AllowsNotStarted() {
+        // forceStartBeforeReport defaults to false via @Value default
+        Operation op = buildOperation(1L, 1L, "NOT_STARTED", BigDecimal.TEN);
+        WorkOrder wo = buildWorkOrder(1L, "NOT_STARTED");
+        when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
+        when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.ZERO);
+        when(workOrderMapper.selectById(1L)).thenReturn(wo);
+        when(operationMapper.findByWorkOrderId(1L)).thenReturn(List.of(op));
+
+        ReportRequest req = new ReportRequest();
+        req.setOperationId(1L);
+        req.setReportedQuantity(new BigDecimal("5"));
+
+        // Should NOT throw: force-start is disabled so NOT_STARTED is allowed
+        reportService.reportWork(req, 10L, null);
+    }
+
+    @Test
+    void testStartWork_NoDependencies_StartsNormally() {
+        Operation op = buildOperation(1L, 1L, "NOT_STARTED", BigDecimal.TEN);
+        WorkOrder wo = buildWorkOrder(1L, "NOT_STARTED");
+        when(operationMapper.selectById(1L)).thenReturn(op);
+        when(workOrderMapper.selectById(1L)).thenReturn(wo);
+        // No dependencies → empty list (Mockito default for selectList)
+
+        reportService.startWork(1L, 10L);
+
+        assertThat(op.getStatus()).isEqualTo("STARTED");
+    }
+
+    @Test
+    void testStartWork_PredecessorNotComplete_ThrowsException() {
+        Operation op = buildOperation(2L, 1L, "NOT_STARTED", BigDecimal.TEN);
+        Operation predecessor = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN); // not complete
+
+        OperationDependency dep = new OperationDependency();
+        dep.setOperationId(2L);
+        dep.setPredecessorOperationId(1L);
+        dep.setDependencyType("SERIAL");
+        dep.setDeleted(0);
+
+        when(operationMapper.selectById(2L)).thenReturn(op);
+        when(operationDependencyMapper.selectList(any())).thenReturn(List.of(dep));
+        when(operationMapper.selectById(1L)).thenReturn(predecessor);
+
+        assertThatThrownBy(() -> reportService.startWork(2L, 10L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("尚未完成");
+    }
+
+    @Test
+    void testStartWork_ParallelDependency_NotBlocked() {
+        Operation op = buildOperation(2L, 1L, "NOT_STARTED", BigDecimal.TEN);
+        WorkOrder wo = buildWorkOrder(1L, "NOT_STARTED");
+
+        OperationDependency dep = new OperationDependency();
+        dep.setOperationId(2L);
+        dep.setPredecessorOperationId(1L);
+        dep.setDependencyType("PARALLEL"); // PARALLEL does not block
+        dep.setDeleted(0);
+
+        when(operationMapper.selectById(2L)).thenReturn(op);
+        when(operationDependencyMapper.selectList(any())).thenReturn(List.of(dep));
+        when(workOrderMapper.selectById(1L)).thenReturn(wo);
+
+        // Should NOT throw: PARALLEL dependency doesn't block start
+        reportService.startWork(2L, 10L);
+
+        assertThat(op.getStatus()).isEqualTo("STARTED");
     }
 
     // ---------------------------------------------------------------

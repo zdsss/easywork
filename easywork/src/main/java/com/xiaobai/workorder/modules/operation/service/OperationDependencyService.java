@@ -30,8 +30,13 @@ public class OperationDependencyService {
                 .eq(OperationDependency::getOperationId, operationId));
     }
 
+    /**
+     * Returns dependency records where the given operation is listed as a predecessor.
+     * I.e., returns all records (operation_id=X, predecessor_operation_id=operationId),
+     * which represents "operations that depend on (are successors of) the given operation".
+     */
     public List<OperationDependency> getPredecessors(Long operationId) {
         return mapper.selectList(new LambdaQueryWrapper<OperationDependency>()
-                .eq(OperationDependency::getOperationId, operationId));
+                .eq(OperationDependency::getPredecessorOperationId, operationId));
     }
 }

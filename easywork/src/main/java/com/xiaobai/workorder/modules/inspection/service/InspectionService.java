@@ -33,7 +33,10 @@ public class InspectionService {
             throw new BusinessException("Work order not found: " + request.getWorkOrderId());
         }
 
-        if (!"REPORTED".equals(workOrder.getStatus())) {
+        boolean isInspectionOrder = "INSPECTION".equals(workOrder.getOrderType());
+        boolean validStatus = "REPORTED".equals(workOrder.getStatus())
+                || (isInspectionOrder && "STARTED".equals(workOrder.getStatus()));
+        if (!validStatus) {
             throw new BusinessException(
                     "Work order must be in REPORTED status to inspect, current: " + workOrder.getStatus());
         }
@@ -59,9 +62,15 @@ public class InspectionService {
 
         // Update work order status based on result
         String previousStatus = workOrder.getStatus();
-        if ("PASSED".equals(request.getInspectionResult())) {
+        String result = request.getInspectionResult();
+        if ("PASSED".equals(result)) {
             workOrder.setStatus("INSPECT_PASSED");
+        } else if ("REWORK".equals(result) || "FAILED".equals(result)) {
+            workOrder.setStatus("INSPECT_FAILED");
+        } else if ("SCRAP_MATERIAL".equals(result) || "SCRAP_PROCESS".equals(result)) {
+            workOrder.setStatus("SCRAPPED");
         } else {
+            // Default: treat unknown results as failed
             workOrder.setStatus("INSPECT_FAILED");
         }
         workOrderMapper.updateById(workOrder);

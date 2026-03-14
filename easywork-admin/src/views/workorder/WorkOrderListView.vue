@@ -35,7 +35,7 @@
       <el-table-column prop="completedQuantity" label="完成数量" width="100" />
       <el-table-column prop="status" label="状态" width="120">
         <template #default="{ row }">
-          <el-tag :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
+          <el-tag :type="getStatusTagType(row)">{{ getStatusLabel(row) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="priority" label="优先级" width="90">
@@ -68,6 +68,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus } from '@element-plus/icons-vue'
 import { getWorkOrders } from '@/api/workorder'
+import { getStatusLabel, getStatusTagType } from '@/utils/statusLabel'
 
 const router = useRouter()
 const loading = ref(false)
@@ -82,24 +83,9 @@ const statusOptions = [
   { value: 'REPORTED', label: '已报工' },
   { value: 'INSPECT_PASSED', label: '质检通过' },
   { value: 'INSPECT_FAILED', label: '质检失败' },
+  { value: 'SCRAPPED', label: '已报废' },
   { value: 'COMPLETED', label: '已完成' },
 ]
-
-function statusLabel(status) {
-  return statusOptions.find((s) => s.value === status)?.label ?? status
-}
-
-function statusTagType(status) {
-  const map = {
-    NOT_STARTED: 'info',
-    STARTED: 'primary',
-    REPORTED: 'warning',
-    INSPECT_PASSED: 'success',
-    INSPECT_FAILED: 'danger',
-    COMPLETED: 'success',
-  }
-  return map[status] ?? ''
-}
 
 function formatDate(val) {
   if (!val) return '-'

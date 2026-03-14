@@ -72,6 +72,10 @@ app:
     allowed-headers: "*"
     max-age: 3600
 
+  # Work order behavior
+  workorder:
+    force-start-before-report: false   # When true, reportWork requires STARTED status
+
   # MES Integration
   # Set enabled=true and configure base-url to activate outbound push and retry scheduler.
   mes:

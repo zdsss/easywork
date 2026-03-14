@@ -25,7 +25,7 @@ easyworks/
 - **启动命令**：`docker-compose up -d postgres redis` → 见下方"Windows 工具路径"运行命令
 - **Swagger**：`http://localhost:8080/swagger-ui.html`
 - **包路径**：`com.xiaobai.workorder`
-- **测试**：132 个单元测试，全部通过
+- **测试**：140 个单元测试，全部通过
 
 ### easywork-admin（管理端前端）
 - **技术栈**：Vue 3 / Vite / Element Plus / Vue Router / Pinia / Axios

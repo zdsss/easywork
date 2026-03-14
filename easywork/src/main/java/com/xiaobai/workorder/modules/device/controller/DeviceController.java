@@ -102,17 +102,21 @@ public class DeviceController {
         java.util.Optional<com.xiaobai.workorder.modules.operation.entity.Operation> byOpNumber = operationMapper.findByOperationNumber(barcode);
         if (byOpNumber.isPresent()) {
             com.xiaobai.workorder.modules.operation.entity.Operation op = byOpNumber.get();
-            reportService.startWork(op.getId(), userId);
+            if ("NOT_STARTED".equals(op.getStatus())) {
+                reportService.startWork(op.getId(), userId);
+            }
             return ApiResponse.success(workOrderService.getWorkOrderById(op.getWorkOrderId()));
         }
 
-        // Fall back to work-order barcode: start the first unfinished operation
+        // Fall back to work-order barcode: match by user/team assignment, pick earliest by sequenceNumber
         WorkOrderDTO workOrder = workOrderService.getWorkOrderByBarcode(barcode, userId);
-        workOrder.getOperations().stream()
-                .filter(op -> "NOT_STARTED".equals(op.getStatus()) || "STARTED".equals(op.getStatus()))
-                .findFirst()
-                .ifPresent(op -> reportService.startWork(op.getId(), userId));
-        return ApiResponse.success(workOrderService.getWorkOrderById(workOrder.getId()));
+        Long workOrderId = workOrder.getId();
+        com.xiaobai.workorder.modules.operation.entity.Operation op =
+                resolveOperationForStart(userId, workOrderId);
+        if (op != null) {
+            reportService.startWork(op.getId(), userId);
+        }
+        return ApiResponse.success(workOrderService.getWorkOrderById(workOrderId));
     }
 
     @Operation(summary = "Scan barcode to report work - supports both work-order and operation barcodes")
@@ -134,17 +138,17 @@ public class DeviceController {
             return ApiResponse.success(workOrderService.getWorkOrderById(op.getWorkOrderId()));
         }
 
-        // Fall back to work-order barcode
+        // Fall back to work-order barcode: match by user/team assignment, pick earliest unfinished
         WorkOrderDTO workOrder = workOrderService.getWorkOrderByBarcode(barcode, userId);
-        workOrder.getOperations().stream()
-                .filter(op -> "STARTED".equals(op.getStatus()) || "NOT_STARTED".equals(op.getStatus()))
-                .findFirst()
-                .ifPresent(op -> {
-                    ReportRequest req = new ReportRequest();
-                    req.setOperationId(op.getId());
-                    reportService.reportWork(req, userId, null);
-                });
-        return ApiResponse.success(workOrderService.getWorkOrderById(workOrder.getId()));
+        Long workOrderId = workOrder.getId();
+        com.xiaobai.workorder.modules.operation.entity.Operation op =
+                resolveOperationForReport(userId, workOrderId);
+        if (op != null) {
+            ReportRequest req = new ReportRequest();
+            req.setOperationId(op.getId());
+            reportService.reportWork(req, userId, null);
+        }
+        return ApiResponse.success(workOrderService.getWorkOrderById(workOrderId));
     }
 
     @Operation(summary = "Undo the last report for an operation")
@@ -231,6 +235,46 @@ public class DeviceController {
         return ApiResponse.success(inspectionService.getLatestByWorkOrderId(workOrderId));
     }
 
+    @Operation(summary = "Submit inspection result (for worker/inspector on device)")
+    @PostMapping("/inspect")
+    public ApiResponse<InspectionRecord> deviceInspect(@RequestBody Map<String, Object> body) {
+        Long userId = securityUtils.getCurrentUserId();
+
+        Long workOrderId = getLong(body, "workOrderId");
+        Long operationId = getLong(body, "operationId");
+        String inspectionResult = (String) body.get("inspectionResult");
+
+        // Derive workOrderId from operationId if not provided
+        if (workOrderId == null && operationId != null) {
+            com.xiaobai.workorder.modules.operation.entity.Operation op = operationMapper.selectById(operationId);
+            if (op != null) workOrderId = op.getWorkOrderId();
+        }
+        if (workOrderId == null) {
+            throw new BusinessException("workOrderId (or operationId to derive it) is required");
+        }
+        if (inspectionResult == null || inspectionResult.isBlank()) {
+            throw new BusinessException("inspectionResult is required");
+        }
+
+        com.xiaobai.workorder.modules.inspection.dto.InspectionRequest req =
+                new com.xiaobai.workorder.modules.inspection.dto.InspectionRequest();
+        req.setWorkOrderId(workOrderId);
+        req.setOperationId(operationId);
+        req.setInspectionResult(inspectionResult);
+        if (body.get("inspectedQuantity") != null)
+            req.setInspectedQuantity(getBigDecimal(body, "inspectedQuantity"));
+        if (body.get("qualifiedQuantity") != null)
+            req.setQualifiedQuantity(getBigDecimal(body, "qualifiedQuantity"));
+        if (body.get("defectQuantity") != null)
+            req.setDefectQuantity(getBigDecimal(body, "defectQuantity"));
+        if (body.get("defectReason") != null)
+            req.setDefectReason((String) body.get("defectReason"));
+        if (body.get("notes") != null)
+            req.setNotes((String) body.get("notes"));
+
+        return ApiResponse.success(inspectionService.submitInspection(req, userId));
+    }
+
     @Operation(summary = "Create rework record")
     @PostMapping("/rework")
     public ApiResponse<ReworkRecord> createRework(@RequestBody Map<String, Object> body) {
@@ -253,6 +297,32 @@ public class DeviceController {
     @GetMapping("/rework/{workOrderId}")
     public ApiResponse<List<ReworkRecord>> getReworkHistory(@PathVariable Long workOrderId) {
         return ApiResponse.success(reworkService.getByWorkOrder(workOrderId));
+    }
+
+    /**
+     * Resolve the earliest NOT_STARTED operation for the user (direct or team assignment).
+     * Used for work-order barcode scan start.
+     */
+    private com.xiaobai.workorder.modules.operation.entity.Operation resolveOperationForStart(
+            Long userId, Long workOrderId) {
+        com.xiaobai.workorder.modules.operation.entity.Operation op =
+                operationMapper.findEarliestUnfinishedByUserAndWorkOrder(userId, workOrderId);
+        if (op != null && "NOT_STARTED".equals(op.getStatus())) return op;
+        op = operationMapper.findEarliestUnfinishedByTeamUserAndWorkOrder(userId, workOrderId);
+        if (op != null && "NOT_STARTED".equals(op.getStatus())) return op;
+        return null;
+    }
+
+    /**
+     * Resolve the earliest unfinished operation for the user (direct or team assignment).
+     * Used for work-order barcode scan report (accepts STARTED or NOT_STARTED).
+     */
+    private com.xiaobai.workorder.modules.operation.entity.Operation resolveOperationForReport(
+            Long userId, Long workOrderId) {
+        com.xiaobai.workorder.modules.operation.entity.Operation op =
+                operationMapper.findEarliestUnfinishedByUserAndWorkOrder(userId, workOrderId);
+        if (op != null) return op;
+        return operationMapper.findEarliestUnfinishedByTeamUserAndWorkOrder(userId, workOrderId);
     }
 
     private Long getLong(Map<String, Object> body, String key) {

@@ -20,8 +20,9 @@
       <el-form-item label="工单类型" prop="orderType">
         <el-select v-model="form.orderType" style="width: 100%">
           <el-option label="生产" value="PRODUCTION" />
-          <el-option label="返工" value="REWORK" />
-          <el-option label="维修" value="REPAIR" />
+          <el-option label="检验" value="INSPECTION" />
+          <el-option label="转运" value="TRANSPORT" />
+          <el-option label="安灯" value="ANDON" />
         </el-select>
       </el-form-item>
       <el-form-item label="产品名称">
