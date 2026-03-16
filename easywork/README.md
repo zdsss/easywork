@@ -125,7 +125,7 @@ JAVA_HOME="/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home" \
 # 然后同上命令，集成测试会自动连接 localhost:5432
 ```
 
-当前测试状态：**140 个单元测试全绿**（集成测试需启动 PostgreSQL）
+当前测试状态：**147 个单元测试全绿**（集成测试需启动 PostgreSQL）
 
 ---
 

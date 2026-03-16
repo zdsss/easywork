@@ -1,17 +1,15 @@
 package com.xiaobai.workorder.modules.audit.aspect;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiaobai.workorder.common.util.SecurityUtils;
 import com.xiaobai.workorder.modules.audit.service.AuditLogService;
 import com.xiaobai.workorder.modules.operation.entity.Operation;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
-import com.xiaobai.workorder.modules.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -29,6 +27,7 @@ public class AuditLogAspect {
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
     private final OperationMapper operationMapper;
+    private final SecurityUtils securityUtils;
 
     /**
      * Wraps the audited method in a transaction so that the before-state snapshot,
@@ -39,7 +38,7 @@ public class AuditLogAspect {
     @Around("@annotation(auditable)")
     @Transactional
     public Object logOperation(ProceedingJoinPoint joinPoint, Auditable auditable) throws Throwable {
-        Long userId = getCurrentUserId();
+        Long userId = securityUtils.getCurrentUserId();
         String ipAddress = getClientIp();
 
         // Capture before-state: extract operationId from args and query current status
@@ -103,14 +102,6 @@ public class AuditLogAspect {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    private Long getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof User) {
-            return ((User) auth.getPrincipal()).getId();
-        }
-        return null;
     }
 
     private String getClientIp() {

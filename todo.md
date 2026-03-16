@@ -24,13 +24,16 @@
 ### CTO 审查报告 — P2 质量改进
 - [x] **P2-A** `WorkOrder` 实体添加 `@Version` 乐观锁字段 + 迁移 V1.6
 - [x] **P2-B** `operation_dependencies` 添加 UNIQUE(operation_id, predecessor_operation_id) 约束 + `operation_logs.user_id` 索引（V1.6 迁移）
-- [x] **P2-C** `AuditLogAspect.logOperation()` 添加 `@Transactional`，before-state 快照与业务逻辑在同一事务内
+- [x] **P2-C** `AuditLogAspect.logOperation()` 添加 `@Transactional`，before-state 快照与业务逻辑在同一事务内；**bug fix**：`getCurrentUserId()` 改为注入 `SecurityUtils`，修复 audit log user_id 为 null 导致的 500 错误
 - [x] **P2-D** `StatisticsService` `completedCount` 语义统一：dashboard 与 typeStats 均定义为 INSPECT_PASSED + COMPLETED（不含 REPORTED）
 - [x] **P2-E** 管理端依赖图拓扑排序：Kahn 算法按依赖层次布局，消除节点重叠
 - [x] **P2-F** `DashboardView` ECharts 添加 `window.resize` 监听，防止图表超出容器
 
 ### CTO 审查报告 — P3 架构改进
 - [x] **P3-C** 管理端依赖配置界面移除 CONDITIONAL 选项（半实现功能，避免误用）
+
+### 前端兼容性修复
+- [x] **管理端 Vite 版本**：`easywork-admin` `package.json` 中 vite 由 `^7.3.1` 降为 `^5.4.0`（Node 18 不支持 `crypto.hash`，Vite 7.x 强依赖此 API），`@vitejs/plugin-vue` 同步降为 `^5.0.0`
 
 ---
 

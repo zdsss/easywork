@@ -229,3 +229,5 @@ easyworks/
 - 后端使用 `SessionCreationPolicy.STATELESS`，前端不依赖 Cookie/Session
 - MES 集成默认关闭（`app.mes.integration.enabled: false`），联调时按需开启
 - 逻辑删除字段：`deleted`（1=已删除，0=正常）
+- **Node.js 版本要求**：前端 Vite 5.x 要求 Node.js 18+（LTS）；`crypto.hash` API 在 Node < 20.12 不可用，请勿将 vite 升级到 7.x（会导致 `TypeError: crypto.hash is not a function`）
+- **V1.6 迁移（手动）**：`easywork/src/main/resources/db/migration/V1.6__add_work_order_version_and_dep_unique.sql` 需手动执行（无 Flyway 自动迁移），内容：work_orders.version 列 + operation_dependencies 唯一约束 + operation_logs.user_id 索引
