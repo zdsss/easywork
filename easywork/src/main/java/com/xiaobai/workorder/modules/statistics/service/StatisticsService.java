@@ -73,7 +73,9 @@ public class StatisticsService {
                 return s;
             });
             ts.setCount(ts.getCount() + cnt);
-            if ("REPORTED".equals(status) || "INSPECT_PASSED".equals(status) || "COMPLETED".equals(status)) {
+            // completedCount matches the dashboard definition: INSPECT_PASSED + COMPLETED only.
+            // REPORTED means work is submitted but pending QC — counted separately via reportedCount.
+            if ("INSPECT_PASSED".equals(status) || "COMPLETED".equals(status)) {
                 ts.setCompletedCount(ts.getCompletedCount() + cnt);
             }
         }

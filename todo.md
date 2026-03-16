@@ -2,8 +2,35 @@
 
 ## 待办
 
-### P1 — 键盘输入 Bug 修复（进行中）
-- [ ] `useHardwareInput.js` capture phase 在输入框聚焦时仍拦截事件，导致 Web 端无法正常键盘录入（已有修复提交，待验证）
+（当前无待办项）
+
+---
+
+## 已完成（2026-03-16）
+
+### CTO 审查报告 — P0 修复
+- [x] **P0-A** `OperationDependencyService.getPredecessors()` 查询方向完全反了：由 `predecessorOperationId = ?` 改为 `operationId = ?`，同步修复 `getDependencies()` 缺少 `deleted = 0` 过滤
+- [x] **P0-B** `useHardwareInput.js` 扫码枪 Enter 在输入框聚焦时无法触发：改为普通字符始终累积缓冲区（透传给输入框），扫码枪 Enter 即使聚焦也拦截调用 `onScan`；新增 Backspace 回调
+- [x] **P0-D** `WorkOrderService.completeWorkOrder()` 仅允许 INSPECT_PASSED → COMPLETED：按 orderType 分支，非生产工单允许 REPORTED → COMPLETED
+
+### CTO 审查报告 — P1 修复
+- [x] **P1-A** 工人端报工数量快捷键输入：字符串拼接改为整数追加（`current * 10 + digit`），Backspace 删末位数字
+- [x] **P1-B** 工人端工序列表方向键导航：实现 `onNavigate` 回调，`activeOpIndex` 追踪焦点工序卡片，`scrollIntoView` + 蓝色边框高亮，快捷键 1/2 优先对焦点工序操作
+- [x] **P1-C** 扫码班组匹配补全：新增 `findEarliestNotStartedByUserAndWorkOrder` / `findEarliestNotStartedByTeamUserAndWorkOrder`，`resolveOperationForStart()` 准确定位最前道未开工工序
+- [x] **P1-D** 管理端工单创建依赖失败静默：捕获每条依赖的异常，最终以 `ElMessage.warning` 列出失败项名称
+- [x] **P1-E** 离线队列失败通知：`processQueue()` 返回 `{ processed, failed, skipped }`，联网后显示失败操作名称列表
+- [x] **P1 Bug** `useHardwareInput.js` capture phase 输入框拦截（已在 P0-B 统一修复）
+
+### CTO 审查报告 — P2 质量改进
+- [x] **P2-A** `WorkOrder` 实体添加 `@Version` 乐观锁字段 + 迁移 V1.6
+- [x] **P2-B** `operation_dependencies` 添加 UNIQUE(operation_id, predecessor_operation_id) 约束 + `operation_logs.user_id` 索引（V1.6 迁移）
+- [x] **P2-C** `AuditLogAspect.logOperation()` 添加 `@Transactional`，before-state 快照与业务逻辑在同一事务内
+- [x] **P2-D** `StatisticsService` `completedCount` 语义统一：dashboard 与 typeStats 均定义为 INSPECT_PASSED + COMPLETED（不含 REPORTED）
+- [x] **P2-E** 管理端依赖图拓扑排序：Kahn 算法按依赖层次布局，消除节点重叠
+- [x] **P2-F** `DashboardView` ECharts 添加 `window.resize` 监听，防止图表超出容器
+
+### CTO 审查报告 — P3 架构改进
+- [x] **P3-C** 管理端依赖配置界面移除 CONDITIONAL 选项（半实现功能，避免误用）
 
 ---
 

@@ -236,7 +236,8 @@ class DeviceControllerTest {
         Operation op = buildOperation(5L, 1L, "NOT_STARTED");
         when(operationMapper.findByOperationNumber("WO-001")).thenReturn(java.util.Optional.empty());
         when(workOrderService.getWorkOrderByBarcode("WO-001", 10L)).thenReturn(dto);
-        when(operationMapper.findEarliestUnfinishedByUserAndWorkOrder(10L, 1L)).thenReturn(op);
+        // Uses the NOT_STARTED-specific query for scan-to-start
+        when(operationMapper.findEarliestNotStartedByUserAndWorkOrder(10L, 1L)).thenReturn(op);
         when(workOrderService.getWorkOrderById(1L)).thenReturn(dto);
 
         mockMvc.perform(post("/api/device/scan/start")
@@ -255,8 +256,8 @@ class DeviceControllerTest {
         Operation earliest = buildOperation(3L, 1L, "NOT_STARTED");
         when(operationMapper.findByOperationNumber("WO-002")).thenReturn(java.util.Optional.empty());
         when(workOrderService.getWorkOrderByBarcode("WO-002", 10L)).thenReturn(dto);
-        // Direct user assignment returns earliest operation
-        when(operationMapper.findEarliestUnfinishedByUserAndWorkOrder(10L, 1L)).thenReturn(earliest);
+        // Uses NOT_STARTED-specific query: correctly skips STARTED ops to find earliest NOT_STARTED
+        when(operationMapper.findEarliestNotStartedByUserAndWorkOrder(10L, 1L)).thenReturn(earliest);
         when(workOrderService.getWorkOrderById(1L)).thenReturn(dto);
 
         mockMvc.perform(post("/api/device/scan/start")

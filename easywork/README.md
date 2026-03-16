@@ -125,24 +125,37 @@ JAVA_HOME="/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home" \
 # 然后同上命令，集成测试会自动连接 localhost:5432
 ```
 
-当前测试状态：**131 个测试全绿**（124 单元测试 + 7 集成测试）
+当前测试状态：**140 个单元测试全绿**（集成测试需启动 PostgreSQL）
 
 ---
 
 ## 工单状态流转
 
 ```
-NOT_STARTED → STARTED → REPORTED → INSPECT_PASSED → COMPLETED
-                                  ↘ INSPECT_FAILED → REPORTED（返工）
+生产工单 (PRODUCTION):
+  NOT_STARTED → STARTED → REPORTED → INSPECT_PASSED → COMPLETED
+                        ↑            → INSPECT_FAILED → (返工后重新报工)
+                        │            → SCRAPPED（报废终态）
+                        └──── 撤销报工（STARTED）
+
+检验工单 (INSPECTION):
+  NOT_STARTED → STARTED → COMPLETED（报工即完成，不走质检）
+
+转运工单 (TRANSPORT):
+  NOT_STARTED → STARTED → COMPLETED
+
+安灯工单 (ANDON):
+  NOT_STARTED → STARTED → COMPLETED
 ```
 
 | 状态 | 含义 |
 |------|------|
 | `NOT_STARTED` | 已创建，未开工 |
 | `STARTED` | 已开工 |
-| `REPORTED` | 已报工，等待质检 |
-| `INSPECT_PASSED` | 质检通过 |
-| `INSPECT_FAILED` | 质检不合格，可返工 |
+| `REPORTED` | 已报工（生产工单等待质检；其余类型由系统自动推进至 COMPLETED） |
+| `INSPECT_PASSED` | 质检通过（仅生产工单） |
+| `INSPECT_FAILED` | 质检不合格，可返工（仅生产工单） |
+| `SCRAPPED` | 报废终态（仅生产工单） |
 | `COMPLETED` | 已完成关闭 |
 
 ---

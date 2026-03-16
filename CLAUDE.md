@@ -118,7 +118,7 @@ Worker：http://localhost:5174
 
 | 文件 | 说明 |
 |------|------|
-| `composables/useHardwareInput.js` | 硬件输入语义化层：扫码枪识别（capture phase，50ms 阈值）、方向键导航、数字快捷键、ESC 返回。输入框聚焦时所有事件直接透传，不干扰键盘录入 |
+| `composables/useHardwareInput.js` | 硬件输入语义化层：扫码枪识别（capture phase，50ms 阈值）、方向键导航、数字快捷键、ESC 返回、退格键。扫码枪字符在输入框聚焦时仍累积缓冲区，扫码枪 Enter 即使聚焦也拦截并触发 onScan；普通按键透传不干扰键盘录入 |
 | `composables/usePhysicalKeys.js` | 原始键盘事件层（保留兼容，TestView 使用） |
 | `components/KeyHints.vue` | 固定在 tabbar（50px）上方的快捷键提示条，hints 为空时不渲染 |
 | `components/T9Input.vue` | T9 九键键盘，用于登录页密码输入 |

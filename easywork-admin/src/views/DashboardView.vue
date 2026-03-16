@@ -145,8 +145,16 @@ async function loadData() {
   }
 }
 
-onMounted(loadData)
+function handleResize() {
+  chartInstance?.resize()
+}
+
+onMounted(() => {
+  loadData()
+  window.addEventListener('resize', handleResize)
+})
 onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
   chartInstance?.dispose()
 })
 </script>

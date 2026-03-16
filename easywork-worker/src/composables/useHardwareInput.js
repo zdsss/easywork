@@ -9,19 +9,23 @@ function isPrintable(key) {
  * Hardware input layer for industrial PDA / scan gun / keypad terminals.
  *
  * Scan gun detection:
- *   - Each printable char is timestamped into scanBuffer
- *   - Gap >= 50ms → buffer reset
+ *   - Each printable char is timestamped into scanBuffer (regardless of input focus)
+ *   - Gap >= 50ms between chars → buffer reset
  *   - On Enter: if buffer.length >= 4 and all chars arrived in < 50ms → scan gun
- *     → preventDefault, clear any focused input, call onScan(barcode)
+ *     → preventDefault+stopPropagation, call onScan(barcode)
  *   - Uses capture phase so scan gun Enter fires before dialog before-close
  *
- * Non-input-focused navigation/shortcuts:
+ * When an input is focused:
+ *   - Printable chars still accumulate in buffer but are NOT prevented (pass to input natively)
+ *   - Scan gun Enter IS intercepted (even when input focused) to catch scan-while-typing scenarios
+ *   - Arrow keys, Escape, and regular Enter fall through to the input natively
+ *
+ * When NO input is focused:
  *   - Arrow keys → onNavigate(dir)
  *   - ESC → onBack()
- *   - 0-9 → onShortcut(key)
+ *   - Backspace → onShortcut('Backspace')
  *   - Enter → onConfirm()
- *
- * When an input is focused, only scan gun detection runs.
+ *   - 0-9 → onShortcut(key)  [separate listener]
  */
 export function useHardwareInput({
   onNavigate,
@@ -49,24 +53,19 @@ export function useHardwareInput({
   function handleKeydown(e) {
     const now = Date.now()
     const key = e.key
+    const inputFocused = isInputFocused()
 
-    // When an input/textarea is focused, let ALL keys pass through natively.
-    // Scan gun detection is only meaningful when no input is focused (e.g. list
-    // view, detail view) – ScanView relies on its own @keyup.enter handler.
-    if (isInputFocused()) {
-      clearScanBuffer()
-      return
-    }
-
-    // --- Scan gun detection (only when no input is focused) ---
+    // --- Scan gun detection: accumulate printable chars regardless of input focus ---
     if (isPrintable(key)) {
       const gap = now - lastCharTime
       if (lastCharTime > 0 && gap >= SCAN_THRESHOLD_MS) {
-        // Slow keystroke – reset buffer
+        // Slow keystroke (real typing) → reset buffer
         clearScanBuffer()
       }
       scanBuffer.push({ char: key, time: now })
       lastCharTime = now
+      // When input is focused: let chars fall through natively (no preventDefault)
+      // The buffer still accumulates so we can detect a scan gun on Enter
       return
     }
 
@@ -75,7 +74,7 @@ export function useHardwareInput({
       clearScanBuffer()
 
       if (buf.length >= SCAN_MIN_LENGTH) {
-        // Verify all gaps were fast
+        // Verify all inter-char gaps were fast
         let allFast = true
         for (let i = 1; i < buf.length; i++) {
           if (buf[i].time - buf[i - 1].time >= SCAN_THRESHOLD_MS) {
@@ -85,7 +84,7 @@ export function useHardwareInput({
         }
 
         if (allFast) {
-          // Scan gun confirmed (no input was focused)
+          // Scan gun confirmed – intercept even when input is focused
           e.preventDefault()
           e.stopPropagation()
           const barcode = buf.map(b => b.char).join('')
@@ -94,7 +93,8 @@ export function useHardwareInput({
         }
       }
 
-      // Not a scan gun Enter – treat as confirm
+      // Not a scan gun Enter
+      if (inputFocused) return // Let Enter fall through to input (form submit etc.)
       e.preventDefault()
       if (onConfirm) onConfirm()
       return
@@ -103,6 +103,10 @@ export function useHardwareInput({
     // Non-printable, non-Enter key → reset scan buffer
     clearScanBuffer()
 
+    // When input is focused: let all other keys (arrows, Backspace) pass through natively
+    if (inputFocused) return
+
+    // Navigation shortcuts (only when no input is focused)
     if (key === 'ArrowUp') {
       e.preventDefault()
       if (onNavigate) onNavigate('up')
@@ -118,6 +122,9 @@ export function useHardwareInput({
     } else if (key === 'Escape') {
       e.preventDefault()
       if (onBack) onBack()
+    } else if (key === 'Backspace') {
+      e.preventDefault()
+      if (onShortcut) onShortcut('Backspace')
     }
   }
 

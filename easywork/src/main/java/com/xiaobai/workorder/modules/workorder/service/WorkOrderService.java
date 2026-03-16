@@ -184,16 +184,26 @@ public class WorkOrderService {
         if (workOrder == null || workOrder.getDeleted() == 1) {
             throw new BusinessException("Work order not found: " + id);
         }
-        if (!"INSPECT_PASSED".equals(workOrder.getStatus())) {
-            throw new BusinessException(
-                    "Work order must be in INSPECT_PASSED status to complete, current: " + workOrder.getStatus());
+        String orderType = workOrder.getOrderType();
+        String currentStatus = workOrder.getStatus();
+        // PRODUCTION orders require quality inspection before completion
+        if ("PRODUCTION".equals(orderType)) {
+            if (!"INSPECT_PASSED".equals(currentStatus)) {
+                throw new BusinessException(
+                        "生产工单必须处于 INSPECT_PASSED 状态才能完成，当前状态：" + currentStatus);
+            }
+        } else {
+            // INSPECTION, TRANSPORT, ANDON: REPORTED → COMPLETED directly
+            if (!"REPORTED".equals(currentStatus) && !"INSPECT_PASSED".equals(currentStatus)) {
+                throw new BusinessException(
+                        "工单无法完成，当前状态：" + currentStatus);
+            }
         }
-        String previousStatus = workOrder.getStatus();
         workOrder.setStatus("COMPLETED");
         workOrderMapper.updateById(workOrder);
         eventPublisher.publishEvent(new WorkOrderStatusChangedEvent(
-                this, id, previousStatus, "COMPLETED", null));
-        log.info("Work order {} completed", id);
+                this, id, currentStatus, "COMPLETED", null));
+        log.info("Work order {} completed (type={})", id, orderType);
     }
 
     @Transactional

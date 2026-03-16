@@ -301,16 +301,16 @@ public class DeviceController {
 
     /**
      * Resolve the earliest NOT_STARTED operation for the user (direct or team assignment).
+     * PRD priority: 1) directly-assigned, 2) team-assigned.
+     * Within each category, pick the front-most (lowest sequenceNumber) NOT_STARTED operation.
      * Used for work-order barcode scan start.
      */
     private com.xiaobai.workorder.modules.operation.entity.Operation resolveOperationForStart(
             Long userId, Long workOrderId) {
         com.xiaobai.workorder.modules.operation.entity.Operation op =
-                operationMapper.findEarliestUnfinishedByUserAndWorkOrder(userId, workOrderId);
-        if (op != null && "NOT_STARTED".equals(op.getStatus())) return op;
-        op = operationMapper.findEarliestUnfinishedByTeamUserAndWorkOrder(userId, workOrderId);
-        if (op != null && "NOT_STARTED".equals(op.getStatus())) return op;
-        return null;
+                operationMapper.findEarliestNotStartedByUserAndWorkOrder(userId, workOrderId);
+        if (op != null) return op;
+        return operationMapper.findEarliestNotStartedByTeamUserAndWorkOrder(userId, workOrderId);
     }
 
     /**

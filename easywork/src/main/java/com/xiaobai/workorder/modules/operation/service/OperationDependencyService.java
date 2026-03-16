@@ -27,16 +27,19 @@ public class OperationDependencyService {
 
     public List<OperationDependency> getDependencies(Long operationId) {
         return mapper.selectList(new LambdaQueryWrapper<OperationDependency>()
-                .eq(OperationDependency::getOperationId, operationId));
+                .eq(OperationDependency::getOperationId, operationId)
+                .eq(OperationDependency::getDeleted, 0));
     }
 
     /**
-     * Returns dependency records where the given operation is listed as a predecessor.
-     * I.e., returns all records (operation_id=X, predecessor_operation_id=operationId),
-     * which represents "operations that depend on (are successors of) the given operation".
+     * Returns dependency records where the given operation is the dependent.
+     * I.e., returns all records (operation_id=operationId, predecessor_operation_id=X),
+     * which represents "the predecessors that must complete before this operation can start".
+     * Use dep.getPredecessorOperationId() to retrieve each predecessor's ID.
      */
     public List<OperationDependency> getPredecessors(Long operationId) {
         return mapper.selectList(new LambdaQueryWrapper<OperationDependency>()
-                .eq(OperationDependency::getPredecessorOperationId, operationId));
+                .eq(OperationDependency::getOperationId, operationId)
+                .eq(OperationDependency::getDeleted, 0));
     }
 }

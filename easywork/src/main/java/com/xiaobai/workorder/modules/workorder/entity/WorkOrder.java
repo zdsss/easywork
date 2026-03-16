@@ -1,6 +1,7 @@
 package com.xiaobai.workorder.modules.workorder.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.Version;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -28,6 +29,9 @@ public class WorkOrder {
     private String workshop;
     private String productionLine;
     private String notes;
+
+    @Version
+    private Integer version;
 
     @TableLogic
     private Integer deleted;

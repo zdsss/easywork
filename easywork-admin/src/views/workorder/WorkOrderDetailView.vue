@@ -119,13 +119,9 @@
         </el-form-item>
         <el-form-item label="依赖类型">
           <el-radio-group v-model="depForm.type">
-            <el-radio value="SERIAL">串行(SERIAL)</el-radio>
-            <el-radio value="PARALLEL">并行(PARALLEL)</el-radio>
-            <el-radio value="CONDITIONAL">条件(CONDITIONAL)</el-radio>
+            <el-radio value="SERIAL">串行 — 前置必须完成</el-radio>
+            <el-radio value="PARALLEL">并行 — 仅参考</el-radio>
           </el-radio-group>
-        </el-form-item>
-        <el-form-item v-if="depForm.type === 'CONDITIONAL'" label="条件表达式">
-          <el-input v-model="depForm.condition" placeholder="如: qty > 100" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -358,30 +354,77 @@ async function openGraphDialog() {
       ops.map((op) => getDependencies(op.id).catch(() => []))
     )
 
-    // Build nodes sorted by sequenceNumber
-    const sorted = [...ops].sort((a, b) => (a.sequenceNumber ?? 0) - (b.sequenceNumber ?? 0))
-    const COLS = Math.ceil(Math.sqrt(sorted.length))
-    graphNodes.value = sorted.map((op, idx) => ({
-      id: String(op.id),
-      label: op.operationName,
-      position: { x: (idx % COLS) * 200, y: Math.floor(idx / COLS) * 120 },
-    }))
-
-    // Build edges from dependency results
+    // Build edge list: source = predecessorOperationId, target = operationId
     const edges = []
     ops.forEach((op, i) => {
       const opDeps = depResults[i] ?? []
       opDeps.forEach((dep) => {
-        edges.push({
-          id: `e${dep.predecessorId}-${op.id}`,
-          source: String(dep.predecessorId),
-          target: String(op.id),
-          label: dep.type,
-          markerEnd: { type: MarkerType.ArrowClosed },
-        })
+        const predId = dep.predecessorOperationId ?? dep.predecessorId
+        if (predId) {
+          edges.push({
+            id: `e${predId}-${op.id}`,
+            source: String(predId),
+            target: String(op.id),
+            label: dep.dependencyType ?? dep.type,
+            markerEnd: { type: MarkerType.ArrowClosed },
+          })
+        }
       })
     })
     graphEdges.value = edges
+
+    // Topological sort (Kahn's algorithm) for meaningful graph layout
+    const opIds = ops.map((o) => o.id)
+    const inDegree = new Map(opIds.map((id) => [id, 0]))
+    const adjacency = new Map(opIds.map((id) => [id, []]))
+
+    for (const edge of edges) {
+      const src = Number(edge.source)
+      const tgt = Number(edge.target)
+      if (inDegree.has(tgt)) inDegree.set(tgt, inDegree.get(tgt) + 1)
+      if (adjacency.has(src)) adjacency.get(src).push(tgt)
+    }
+
+    // Kahn's BFS: produces layers (nodes at the same topological depth share a column)
+    const layers = []
+    let queue = opIds.filter((id) => inDegree.get(id) === 0)
+    const visited = new Set()
+
+    while (queue.length > 0) {
+      layers.push([...queue])
+      queue.forEach((id) => visited.add(id))
+      const nextQueue = []
+      for (const id of queue) {
+        for (const neighbor of (adjacency.get(id) ?? [])) {
+          if (!visited.has(neighbor)) {
+            inDegree.set(neighbor, inDegree.get(neighbor) - 1)
+            if (inDegree.get(neighbor) === 0) nextQueue.push(neighbor)
+          }
+        }
+      }
+      queue = nextQueue
+    }
+
+    // Any nodes not reached (e.g., cycle remnants) go in an extra layer
+    const unreached = opIds.filter((id) => !visited.has(id))
+    if (unreached.length > 0) layers.push(unreached)
+
+    // Position nodes: each layer is a column, nodes within a layer are rows
+    const NODE_W = 200
+    const NODE_H = 100
+    const opMap = new Map(ops.map((o) => [o.id, o]))
+    const nodes = []
+    layers.forEach((layer, colIdx) => {
+      layer.forEach((id, rowIdx) => {
+        const op = opMap.get(id)
+        nodes.push({
+          id: String(id),
+          label: op?.operationName ?? String(id),
+          position: { x: colIdx * NODE_W, y: rowIdx * NODE_H },
+        })
+      })
+    })
+    graphNodes.value = nodes
   } catch {
     // handled
   } finally {

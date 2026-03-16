@@ -33,9 +33,10 @@
       <div class="section-title">工序列表</div>
 
       <div
-        v-for="op in workorder.operations"
+        v-for="(op, opIdx) in workorder.operations"
         :key="op.id"
-        class="operation-card"
+        :ref="el => { if (el) opCardRefs[opIdx] = el }"
+        :class="['operation-card', opIdx === activeOpIndex ? 'focused' : '']"
       >
         <div class="op-header">
           <span class="op-name">{{ op.operationName }}</span>
@@ -280,7 +281,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch, computed } from 'vue'
+import { ref, reactive, onMounted, watch, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { getWorkOrders, getInspectionDetail, createRework, submitInspection } from '@/api/workorder'
@@ -299,6 +300,8 @@ const loading = ref(false)
 const workorder = ref(null)
 const inspection = ref(null)
 const actionLoading = reactive({})
+const activeOpIndex = ref(0)
+const opCardRefs = ref([])
 const reportVisible = ref(false)
 const undoVisible = ref(false)
 const reworkVisible = ref(false)
@@ -318,9 +321,16 @@ const inspectForm = reactive({
 
 const { isOnline } = useNetworkStatus()
 
-// Auto-process queue when back online
-watch(isOnline, (online) => {
-  if (online) processQueue(http)
+// Auto-process queue when back online; notify user of any failures
+watch(isOnline, async (online) => {
+  if (!online) return
+  const result = await processQueue(http)
+  if (result?.failed?.length > 0) {
+    const labels = result.failed.map(f => f.label).join('、')
+    showToast({ type: 'fail', message: `以下操作提交失败，请手动重试：${labels}`, duration: 4000 })
+  } else if (result?.processed > 0) {
+    showToast({ type: 'success', message: `已自动提交 ${result.processed} 条离线操作` })
+  }
 })
 
 // Button label helpers (Task 2: differentiated by orderType)
@@ -341,6 +351,7 @@ const detailHints = computed(() => {
   if (!workorder.value) return []
   const ops = workorder.value.operations || []
   const hints = []
+  if (ops.length > 1) hints.push({ key: '↑↓', label: '切换工序' })
   if (ops.some(op => op.status === 'NOT_STARTED')) hints.push({ key: '1', label: '开工' })
   if (ops.some(op => op.status === 'STARTED' && workorder.value.orderType !== 'INSPECTION')) hints.push({ key: '2', label: '报工' })
   if (ops.some(op => op.status === 'STARTED' && workorder.value.orderType === 'INSPECTION')
@@ -355,6 +366,24 @@ const detailHints = computed(() => {
 })
 
 useHardwareInput({
+  onNavigate(dir) {
+    // When a dialog is open, don't navigate the op list
+    if (reportVisible.value || undoVisible.value || reworkVisible.value || inspectVisible.value) return
+    if (!workorder.value) return
+    const ops = workorder.value.operations || []
+    if (dir === 'up' || dir === 'left') {
+      if (activeOpIndex.value > 0) {
+        activeOpIndex.value--
+        nextTick(() => opCardRefs.value[activeOpIndex.value]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+      }
+    } else if (dir === 'down' || dir === 'right') {
+      if (activeOpIndex.value < ops.length - 1) {
+        activeOpIndex.value++
+        nextTick(() => opCardRefs.value[activeOpIndex.value]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+      }
+    }
+  },
+
   onBack() {
     if (reportVisible.value) { reportVisible.value = false; return }
     if (undoVisible.value) { undoVisible.value = false; return }
@@ -402,18 +431,31 @@ useHardwareInput({
   },
 
   onShortcut(key) {
-    // When report dialog is open, digits append to quantity field
+    // When report dialog is open, digits build the quantity field numerically
     if (reportVisible.value) {
-      reportForm.reportedQuantity = String(reportForm.reportedQuantity || '') + key
+      if (key === 'Backspace') {
+        const s = String(reportForm.reportedQuantity || '')
+        reportForm.reportedQuantity = s.length > 1 ? s.slice(0, -1) : ''
+      } else {
+        // Numeric build: avoid leading zeros (treat current as integer)
+        const current = parseInt(reportForm.reportedQuantity, 10) || 0
+        const next = current * 10 + parseInt(key, 10)
+        reportForm.reportedQuantity = String(next)
+      }
       return
     }
     if (!workorder.value) return
     const ops = workorder.value.operations || []
     if (key === '1') {
-      const op = ops.find(o => o.status === 'NOT_STARTED')
+      // Apply to the focused operation if it's NOT_STARTED, else find first NOT_STARTED
+      const focusedOp = ops[activeOpIndex.value]
+      const op = (focusedOp?.status === 'NOT_STARTED') ? focusedOp : ops.find(o => o.status === 'NOT_STARTED')
       if (op) handleStart(op)
     } else if (key === '2') {
-      const op = ops.find(o => o.status === 'STARTED' && workorder.value.orderType !== 'INSPECTION')
+      const focusedOp = ops[activeOpIndex.value]
+      const op = (focusedOp?.status === 'STARTED' && workorder.value.orderType !== 'INSPECTION')
+        ? focusedOp
+        : ops.find(o => o.status === 'STARTED' && workorder.value.orderType !== 'INSPECTION')
       if (op) openReportDialog(op)
     } else if (key === '3') {
       const inspectOp = ops.find(o => o.status === 'STARTED' && workorder.value.orderType === 'INSPECTION')
@@ -466,6 +508,7 @@ function formatDate(val) {
 
 async function loadWorkOrder() {
   loading.value = true
+  opCardRefs.value = []
   try {
     // No individual endpoint: load list and find by id
     const list = await getWorkOrders()
@@ -733,6 +776,13 @@ onMounted(loadWorkOrder)
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  border: 2px solid transparent;
+  transition: border-color 0.15s;
+}
+
+.operation-card.focused {
+  border-color: #1989fa;
+  box-shadow: 0 2px 8px rgba(25, 137, 250, 0.2);
 }
 
 .op-header {

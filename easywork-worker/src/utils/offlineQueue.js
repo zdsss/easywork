@@ -49,21 +49,27 @@ export async function dequeue(id) {
  * Process the offline queue in order.
  * Items with a `chainId` are treated as a chain: if one item in a chain fails,
  * all subsequent items with the same chainId are skipped (removed from queue).
- * Returns a summary: { processed, skipped, failed }
+ *
+ * Returns a summary: { processed: number, failed: Array<{label, reason}>, skipped: number }
+ * Callers should surface `failed` items to the user.
  */
 export async function processQueue(httpInstance) {
   let items
   try {
     items = await getQueue()
   } catch {
-    return
+    return { processed: 0, failed: [], skipped: 0 }
   }
 
   const failedChains = new Set()
+  // Map chainId → failure reason for user-facing messages
+  const chainFailureReasons = new Map()
+  let processed = 0
   let skipped = 0
+  const failed = []
 
   for (const item of items) {
-    // If this item belongs to a failed chain, skip it
+    // If this item belongs to a failed chain, skip it (orphan task)
     if (item.chainId && failedChains.has(item.chainId)) {
       await dequeue(item.id)
       skipped++
@@ -73,22 +79,31 @@ export async function processQueue(httpInstance) {
     try {
       await httpInstance({ method: item.method, url: item.url, data: item.body })
       await dequeue(item.id)
+      processed++
     } catch (e) {
       if (e.response) {
         // Server rejected (4xx/5xx) - discard to avoid infinite retry
+        const reason = e.response.data?.message || `服务器错误 ${e.response.status}`
         await dequeue(item.id)
+        failed.push({ label: item.label || item.url, reason })
         if (item.chainId) {
           failedChains.add(item.chainId)
+          chainFailureReasons.set(item.chainId, reason)
         }
-      }
-      // Network error: keep in queue for next time, but break chain
-      if (!e.response && item.chainId) {
-        failedChains.add(item.chainId)
+      } else {
+        // Network error: keep in queue for next retry, mark chain as failed
+        failed.push({ label: item.label || item.url, reason: '网络错误，将在下次联网时重试' })
+        if (item.chainId) {
+          failedChains.add(item.chainId)
+          chainFailureReasons.set(item.chainId, '网络错误')
+        }
       }
     }
   }
 
   if (skipped > 0) {
-    console.warn(`[offlineQueue] ${skipped} item(s) skipped due to chain failures. Please check manually.`)
+    console.warn(`[offlineQueue] ${skipped} item(s) skipped due to chain failures.`)
   }
+
+  return { processed, failed, skipped }
 }

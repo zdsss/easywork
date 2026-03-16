@@ -228,19 +228,32 @@ async function handleSubmit() {
     // Post dependencies using operation IDs from response
     const createdOps = createdWorkOrder?.operations || []
     const validDeps = deps.filter(d => d.predecessorIdx !== null && d.operationIdx !== null)
+    const failedDepLabels = []
     for (const dep of validDeps) {
       const predecessorOp = createdOps[dep.predecessorIdx]
       const targetOp = createdOps[dep.operationIdx]
       if (predecessorOp?.id && targetOp?.id) {
-        await postDependency({
-          operationId: targetOp.id,
-          predecessorOperationId: predecessorOp.id,
-          dependencyType: dep.dependencyType,
-        }).catch(() => {})
+        try {
+          await postDependency({
+            operationId: targetOp.id,
+            predecessorOperationId: predecessorOp.id,
+            dependencyType: dep.dependencyType,
+          })
+        } catch {
+          const fromName = predecessorOp.operationName || `工序${dep.predecessorIdx + 1}`
+          const toName = targetOp.operationName || `工序${dep.operationIdx + 1}`
+          failedDepLabels.push(`${fromName} → ${toName}`)
+        }
       }
     }
 
-    ElMessage.success('工单创建成功')
+    if (failedDepLabels.length > 0) {
+      ElMessage.warning(
+        `工单已创建，但以下依赖关系添加失败，请在工单详情页手动配置：${failedDepLabels.join('、')}`
+      )
+    } else {
+      ElMessage.success('工单创建成功')
+    }
     router.push('/workorders')
   } catch {
     // handled in interceptor

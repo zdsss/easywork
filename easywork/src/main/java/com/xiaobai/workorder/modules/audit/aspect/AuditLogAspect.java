@@ -17,6 +17,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 
 @Slf4j
@@ -29,7 +30,14 @@ public class AuditLogAspect {
     private final ObjectMapper objectMapper;
     private final OperationMapper operationMapper;
 
+    /**
+     * Wraps the audited method in a transaction so that the before-state snapshot,
+     * the business logic, and the after-state snapshot are all read within the same
+     * transaction boundary – eliminating the race condition where another concurrent
+     * transaction could modify the row between the before-state read and the actual update.
+     */
     @Around("@annotation(auditable)")
+    @Transactional
     public Object logOperation(ProceedingJoinPoint joinPoint, Auditable auditable) throws Throwable {
         Long userId = getCurrentUserId();
         String ipAddress = getClientIp();

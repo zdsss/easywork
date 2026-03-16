@@ -63,4 +63,39 @@ public interface OperationMapper extends BaseMapper<Operation> {
         """)
     Operation findEarliestUnfinishedByTeamUserAndWorkOrder(
             @Param("userId") Long userId, @Param("workOrderId") Long workOrderId);
+
+    /**
+     * Returns the earliest NOT_STARTED operation directly assigned to this user for scan-to-start.
+     * Prioritizes the front-most (lowest sequenceNumber) unstarted operation.
+     */
+    @Select("""
+        SELECT op.* FROM operations op
+        JOIN operation_assignments oa ON oa.operation_id = op.id AND oa.deleted = 0
+        WHERE oa.assignment_type = 'USER' AND oa.user_id = #{userId}
+          AND op.work_order_id = #{workOrderId}
+          AND op.deleted = 0
+          AND op.status = 'NOT_STARTED'
+        ORDER BY op.sequence_number ASC
+        LIMIT 1
+        """)
+    Operation findEarliestNotStartedByUserAndWorkOrder(
+            @Param("userId") Long userId, @Param("workOrderId") Long workOrderId);
+
+    /**
+     * Returns the earliest NOT_STARTED operation team-assigned to this user for scan-to-start.
+     * Prioritizes the front-most (lowest sequenceNumber) unstarted operation.
+     */
+    @Select("""
+        SELECT op.* FROM operations op
+        JOIN operation_assignments oa ON oa.operation_id = op.id AND oa.deleted = 0
+        JOIN team_members tm ON tm.team_id = oa.team_id AND tm.deleted = 0
+        WHERE oa.assignment_type = 'TEAM' AND tm.user_id = #{userId}
+          AND op.work_order_id = #{workOrderId}
+          AND op.deleted = 0
+          AND op.status = 'NOT_STARTED'
+        ORDER BY op.sequence_number ASC
+        LIMIT 1
+        """)
+    Operation findEarliestNotStartedByTeamUserAndWorkOrder(
+            @Param("userId") Long userId, @Param("workOrderId") Long workOrderId);
 }
