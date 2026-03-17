@@ -19,6 +19,7 @@ import com.xiaobai.workorder.modules.report.entity.ReportRecord;
 import com.xiaobai.workorder.modules.report.repository.ReportRecordMapper;
 import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
 import com.xiaobai.workorder.modules.workorder.repository.WorkOrderMapper;
+import com.xiaobai.workorder.modules.workorder.statemachine.WorkOrderStateMachine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.xiaobai.workorder.config.WorkOrderProperties;
@@ -41,6 +42,7 @@ public class ReportService {
     private final ApplicationEventPublisher eventPublisher;
     private final OperationDependencyMapper operationDependencyMapper;
     private final WorkOrderProperties workOrderProperties;
+    private final WorkOrderStateMachine stateMachine;
 
     @Transactional
     @Auditable(operation = "START_WORK", targetType = "OPERATION")
@@ -254,6 +256,9 @@ public class ReportService {
         if (allReported) {
             WorkOrderStatus previousStatus = workOrder.getStatus();
             WorkOrderStatus newStatus = getEffectiveCompletedStatus(workOrder);
+            if (!stateMachine.canTransition(workOrder.getStatus(), newStatus, workOrder.getOrderType())) {
+                throw new IllegalStateException("Invalid status transition: " + workOrder.getStatus() + " → " + newStatus);
+            }
             workOrder.setStatus(newStatus);
             workOrderMapper.updateById(workOrder);
 
