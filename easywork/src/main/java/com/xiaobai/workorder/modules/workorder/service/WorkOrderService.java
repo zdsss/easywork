@@ -195,19 +195,7 @@ public class WorkOrderService {
         if (!stateMachine.canTransition(currentStatus, WorkOrderStatus.COMPLETED, orderType)) {
             throw new IllegalStateException("Cannot complete work order in status: " + currentStatus);
         }
-        // PRODUCTION orders require quality inspection before completion
-        if (WorkOrderType.PRODUCTION == orderType) {
-            if (WorkOrderStatus.INSPECT_PASSED != currentStatus) {
-                throw new BusinessException(
-                        "生产工单必须处于 INSPECT_PASSED 状态才能完成，当前状态：" + currentStatus);
-            }
-        } else {
-            // INSPECTION, TRANSPORT, ANDON: REPORTED → COMPLETED directly
-            if (WorkOrderStatus.REPORTED != currentStatus && WorkOrderStatus.INSPECT_PASSED != currentStatus) {
-                throw new BusinessException(
-                        "工单无法完成，当前状态：" + currentStatus);
-            }
-        }
+        // State machine enforces valid transitions; no additional guard needed.
         workOrder.setStatus(WorkOrderStatus.COMPLETED);
         workOrderMapper.updateById(workOrder);
         eventPublisher.publishEvent(new WorkOrderStatusChangedEvent(
@@ -225,10 +213,7 @@ public class WorkOrderService {
         if (!stateMachine.canTransition(workOrder.getStatus(), WorkOrderStatus.REPORTED, workOrder.getOrderType())) {
             throw new IllegalStateException("Cannot reopen work order in status: " + workOrder.getStatus());
         }
-        if (WorkOrderStatus.INSPECT_FAILED != workOrder.getStatus()) {
-            throw new BusinessException(
-                    "Work order must be in INSPECT_FAILED status to reopen, current: " + workOrder.getStatus());
-        }
+        // State machine enforces valid transitions; no additional guard needed.
         WorkOrderStatus previousStatus = workOrder.getStatus();
         workOrder.setStatus(WorkOrderStatus.REPORTED);
         workOrderMapper.updateById(workOrder);

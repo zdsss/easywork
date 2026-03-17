@@ -138,7 +138,10 @@ public class ReportService {
         operationMapper.updateById(operation);
 
         // Atomically increment work order completed quantity and then check status transition
-        workOrderMapper.addCompletedQuantity(orderForTypeCheck.getId(), toReport);
+        int updated = workOrderMapper.addCompletedQuantity(orderForTypeCheck.getId(), toReport);
+        if (updated == 0) {
+            log.warn("addCompletedQuantity affected 0 rows for workOrder id={}", orderForTypeCheck.getId());
+        }
         updateWorkOrderStatusOnReport(orderForTypeCheck.getId());
 
         log.info("Operation {} reported {} units by user {}", request.getOperationId(), toReport, userId);
@@ -171,7 +174,10 @@ public class ReportService {
         operationMapper.updateById(operation);
 
         // Atomically decrement work order completed quantity and then check status transition
-        workOrderMapper.addCompletedQuantity(operation.getWorkOrderId(), latest.getReportedQuantity().negate());
+        int updated = workOrderMapper.addCompletedQuantity(operation.getWorkOrderId(), latest.getReportedQuantity().negate());
+        if (updated == 0) {
+            log.warn("addCompletedQuantity affected 0 rows for workOrder id={}", operation.getWorkOrderId());
+        }
         updateWorkOrderStatusOnReport(operation.getWorkOrderId());
 
         log.info("Report undone for operation {} by user {}", request.getOperationId(), userId);

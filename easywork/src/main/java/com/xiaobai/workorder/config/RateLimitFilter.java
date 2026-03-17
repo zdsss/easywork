@@ -1,11 +1,14 @@
 package com.xiaobai.workorder.config;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -13,17 +16,22 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final String LOGIN_PATH = "/api/auth/login";
-    private static final int MAX_REQUESTS = 10;
-    private static final Duration WINDOW = Duration.ofMinutes(1);
 
-    private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    @Value("${app.security.rate-limit.login-max-requests:10}")
+    private int maxRequests;
+
+    @Value("${app.security.rate-limit.login-window-seconds:60}")
+    private int windowSeconds;
+
+    private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
+            .expireAfterAccess(Duration.ofMinutes(10))
+            .maximumSize(100_000)
+            .build();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -34,7 +42,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         String ip = getClientIp(request);
-        Bucket bucket = buckets.computeIfAbsent(ip, k -> createBucket());
+        Bucket bucket = buckets.get(ip, k -> createBucket());
 
         if (bucket.tryConsume(1)) {
             filterChain.doFilter(request, response);
@@ -47,17 +55,16 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private Bucket createBucket() {
         Bandwidth limit = Bandwidth.builder()
-                .capacity(MAX_REQUESTS)
-                .refillIntervally(MAX_REQUESTS, WINDOW)
+                .capacity(this.maxRequests)
+                .refillIntervally(this.maxRequests, Duration.ofSeconds(this.windowSeconds))
                 .build();
         return Bucket.builder().addLimit(limit).build();
     }
 
+    // Use remoteAddr only. X-Forwarded-For is client-controlled and spoofable.
+    // Configure a reverse proxy at the infrastructure layer to set the real client IP
+    // via server.forward-headers-strategy=NATIVE in application.yml if needed.
     private String getClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isEmpty()) {
-            return forwarded.split(",")[0].trim();
-        }
         return request.getRemoteAddr();
     }
 }

@@ -34,7 +34,7 @@ public interface WorkOrderMapper extends BaseMapper<WorkOrder> {
     List<Map<String, Object>> countByTypeAndStatus();
 
     @Update("UPDATE work_orders SET completed_quantity = completed_quantity + #{delta} WHERE id = #{workOrderId} AND deleted = 0")
-    void addCompletedQuantity(@Param("workOrderId") Long workOrderId, @Param("delta") BigDecimal delta);
+    int addCompletedQuantity(@Param("workOrderId") Long workOrderId, @Param("delta") BigDecimal delta);
 
     @Select("""
         SELECT DISTINCT wo.* FROM work_orders wo

@@ -86,6 +86,9 @@ app:
     allowed-methods: GET,POST,PUT,DELETE,OPTIONS
     allowed-headers: "*"
     max-age: 3600
+    rate-limit:
+      login-max-requests: 10
+      login-window-seconds: 60
 
   # Work order behavior: per-type force-start-before-report flag.
   # When true for a given order type, workers must call startWork before reportWork.

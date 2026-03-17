@@ -74,6 +74,8 @@ public class MesRetryScheduler {
         MesApiClient client = mesApiClientProvider.getIfAvailable();
         if (client == null) return;
 
+        // Only RETRYING records are eligible. FAILED is a terminal exhaustion state set by markExhausted().
+        // Records transition: PENDING → (first fail) → RETRYING → ... → (exhausted) → FAILED
         List<MesSyncLog> retryable = syncLogMapper.findPendingRetries(maxRetries);
         if (retryable.isEmpty()) return;
 
