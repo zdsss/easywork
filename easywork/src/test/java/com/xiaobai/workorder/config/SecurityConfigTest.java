@@ -3,6 +3,7 @@ package com.xiaobai.workorder.config;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -21,7 +22,9 @@ class SecurityConfigTest {
 
     @Test
     void corsConfigurationSource_loadsAllowedOriginsFromConfig() {
-        CorsConfiguration corsConfig = corsConfigurationSource.getCorsConfiguration(null);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/test");
+        CorsConfiguration corsConfig = corsConfigurationSource.getCorsConfiguration(request);
 
         assertThat(corsConfig).isNotNull();
         assertThat(corsConfig.getAllowedOrigins())
@@ -32,7 +35,9 @@ class SecurityConfigTest {
 
     @Test
     void corsConfigurationSource_loadsAllowedMethodsFromConfig() {
-        CorsConfiguration corsConfig = corsConfigurationSource.getCorsConfiguration(null);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/test");
+        CorsConfiguration corsConfig = corsConfigurationSource.getCorsConfiguration(request);
 
         assertThat(corsConfig).isNotNull();
         assertThat(corsConfig.getAllowedMethods())
@@ -42,7 +47,9 @@ class SecurityConfigTest {
 
     @Test
     void corsConfigurationSource_loadsMaxAgeFromConfig() {
-        CorsConfiguration corsConfig = corsConfigurationSource.getCorsConfiguration(null);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/test");
+        CorsConfiguration corsConfig = corsConfigurationSource.getCorsConfiguration(request);
 
         assertThat(corsConfig).isNotNull();
         assertThat(corsConfig.getMaxAge()).isEqualTo(3600L);
@@ -50,7 +57,9 @@ class SecurityConfigTest {
 
     @Test
     void corsConfigurationSource_allowedHeadersAllowAll() {
-        CorsConfiguration corsConfig = corsConfigurationSource.getCorsConfiguration(null);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/test");
+        CorsConfiguration corsConfig = corsConfigurationSource.getCorsConfiguration(request);
 
         assertThat(corsConfig).isNotNull();
         assertThat(corsConfig.getAllowedHeaders())
