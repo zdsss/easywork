@@ -7,6 +7,7 @@ import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.modules.inspection.dto.InspectionRequest;
 import com.xiaobai.workorder.modules.inspection.entity.InspectionRecord;
 import com.xiaobai.workorder.modules.inspection.repository.InspectionRecordMapper;
+import com.xiaobai.workorder.modules.audit.aspect.Auditable;
 import com.xiaobai.workorder.modules.mesintegration.event.InspectionRecordSavedEvent;
 import com.xiaobai.workorder.modules.mesintegration.event.WorkOrderStatusChangedEvent;
 import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
@@ -28,6 +29,7 @@ public class InspectionService {
     private final WorkOrderMapper workOrderMapper;
     private final ApplicationEventPublisher eventPublisher;
 
+    @Auditable(operation = "SUBMIT_INSPECTION", targetType = "INSPECTION_RECORD")
     @Transactional
     public InspectionRecord submitInspection(InspectionRequest request, Long inspectorId) {
         WorkOrder workOrder = workOrderMapper.selectById(request.getWorkOrderId());
