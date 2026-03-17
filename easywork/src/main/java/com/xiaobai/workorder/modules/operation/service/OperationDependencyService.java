@@ -1,6 +1,7 @@
 package com.xiaobai.workorder.modules.operation.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.xiaobai.workorder.common.enums.DependencyType;
 import com.xiaobai.workorder.modules.operation.entity.OperationDependency;
 import com.xiaobai.workorder.modules.operation.repository.OperationDependencyMapper;
 import lombok.RequiredArgsConstructor;
@@ -16,12 +17,11 @@ public class OperationDependencyService {
     private final OperationDependencyMapper mapper;
 
     @Transactional
-    public void addDependency(Long operationId, Long predecessorId, String type, String condition) {
+    public void addDependency(Long operationId, Long predecessorId, DependencyType type) {
         OperationDependency dep = new OperationDependency();
         dep.setOperationId(operationId);
         dep.setPredecessorOperationId(predecessorId);
         dep.setDependencyType(type);
-        dep.setConditionExpression(condition);
         mapper.insert(dep);
     }
 

@@ -2,6 +2,8 @@ package com.xiaobai.workorder.modules.workorder.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import com.baomidou.mybatisplus.annotation.Version;
+import com.xiaobai.workorder.common.enums.WorkOrderStatus;
+import com.xiaobai.workorder.common.enums.WorkOrderType;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -15,12 +17,12 @@ public class WorkOrder {
     private Long id;
 
     private String orderNumber;
-    private String orderType;
+    private WorkOrderType orderType;
     private String productCode;
     private String productName;
     private BigDecimal plannedQuantity;
     private BigDecimal completedQuantity;
-    private String status;
+    private WorkOrderStatus status;
     private Integer priority;
     private LocalDateTime plannedStartTime;
     private LocalDateTime plannedEndTime;

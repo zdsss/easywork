@@ -1,5 +1,6 @@
 package com.xiaobai.workorder.modules.operation.controller;
 
+import com.xiaobai.workorder.common.enums.DependencyType;
 import com.xiaobai.workorder.common.response.ApiResponse;
 import com.xiaobai.workorder.modules.operation.entity.OperationDependency;
 import com.xiaobai.workorder.modules.operation.service.OperationDependencyService;
@@ -18,14 +19,13 @@ public class AdminOperationDependencyController {
 
     private final OperationDependencyService service;
 
-    @Operation(summary = "Add operation dependency")
+    @Operation(summary = "Add operation dependency (type: SERIAL or PARALLEL)")
     @PostMapping
     public ApiResponse<Void> addDependency(
             @RequestParam Long operationId,
             @RequestParam Long predecessorId,
-            @RequestParam String type,
-            @RequestParam(required = false) String condition) {
-        service.addDependency(operationId, predecessorId, type, condition);
+            @RequestParam DependencyType type) {
+        service.addDependency(operationId, predecessorId, type);
         return ApiResponse.success(null);
     }
 

@@ -1,5 +1,6 @@
 package com.xiaobai.workorder.modules.inspection.service;
 
+import com.xiaobai.workorder.common.enums.WorkOrderStatus;
 import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.modules.inspection.dto.InspectionRequest;
 import com.xiaobai.workorder.modules.inspection.entity.InspectionRecord;
@@ -33,7 +34,7 @@ class InspectionServiceTest {
 
     @Test
     void submitInspection_passed_updatesWorkOrderToInspectPassed() {
-        WorkOrder wo = buildWorkOrder(1L, "REPORTED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.REPORTED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         InspectionRequest req = buildRequest(1L, "PASSED");
@@ -42,25 +43,25 @@ class InspectionServiceTest {
 
         assertThat(result).isNotNull();
         // Work order is updated in-place
-        assertThat(wo.getStatus()).isEqualTo("INSPECT_PASSED");
+        assertThat(wo.getStatus()).isEqualTo(WorkOrderStatus.INSPECT_PASSED);
         verify(workOrderMapper).updateById((WorkOrder) any(WorkOrder.class));
     }
 
     @Test
     void submitInspection_failed_updatesWorkOrderToInspectFailed() {
-        WorkOrder wo = buildWorkOrder(1L, "REPORTED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.REPORTED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         InspectionRequest req = buildRequest(1L, "FAILED");
 
         inspectionService.submitInspection(req, 99L);
 
-        assertThat(wo.getStatus()).isEqualTo("INSPECT_FAILED");
+        assertThat(wo.getStatus()).isEqualTo(WorkOrderStatus.INSPECT_FAILED);
     }
 
     @Test
     void submitInspection_notReportedStatus_throwsBusinessException() {
-        WorkOrder wo = buildWorkOrder(1L, "STARTED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.STARTED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         InspectionRequest req = buildRequest(1L, "PASSED");
@@ -83,7 +84,7 @@ class InspectionServiceTest {
 
     @Test
     void submitInspection_publishesInspectionRecordSavedEvent() {
-        WorkOrder wo = buildWorkOrder(1L, "REPORTED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.REPORTED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         inspectionService.submitInspection(buildRequest(1L, "PASSED"), 99L);
@@ -93,7 +94,7 @@ class InspectionServiceTest {
 
     @Test
     void submitInspection_publishesWorkOrderStatusChangedEvent() {
-        WorkOrder wo = buildWorkOrder(1L, "REPORTED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.REPORTED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         inspectionService.submitInspection(buildRequest(1L, "PASSED"), 99L);
@@ -103,33 +104,33 @@ class InspectionServiceTest {
 
     @Test
     void testSubmitInspection_Rework_SetsInspectFailed() {
-        WorkOrder wo = buildWorkOrder(1L, "REPORTED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.REPORTED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         InspectionRequest req = buildRequest(1L, "REWORK");
 
         inspectionService.submitInspection(req, 99L);
 
-        assertThat(wo.getStatus()).isEqualTo("INSPECT_FAILED");
+        assertThat(wo.getStatus()).isEqualTo(WorkOrderStatus.INSPECT_FAILED);
     }
 
     @Test
     void testSubmitInspection_Scrap_SetsScrapped() {
-        WorkOrder wo = buildWorkOrder(1L, "REPORTED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.REPORTED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         InspectionRequest req = buildRequest(1L, "SCRAP_MATERIAL");
 
         inspectionService.submitInspection(req, 99L);
 
-        assertThat(wo.getStatus()).isEqualTo("SCRAPPED");
+        assertThat(wo.getStatus()).isEqualTo(WorkOrderStatus.SCRAPPED);
     }
 
     // ---------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------
 
-    private WorkOrder buildWorkOrder(Long id, String status) {
+    private WorkOrder buildWorkOrder(Long id, WorkOrderStatus status) {
         WorkOrder wo = new WorkOrder();
         wo.setId(id);
         wo.setStatus(status);

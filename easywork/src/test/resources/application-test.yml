@@ -5,6 +5,9 @@ spring:
     username: sa
     password:
 
+  flyway:
+    enabled: false  # H2 does not support PostgreSQL-specific Flyway migrations
+
   h2:
     console:
       enabled: false
@@ -29,6 +32,13 @@ app:
   jwt:
     secret: test-jwt-secret-key-for-unit-tests-only-32chars
     expiration: 3600000
+
+  workorder:
+    force-start-before-report:
+      PRODUCTION: false
+      INSPECTION: false
+      TRANSPORT: false
+      ANDON: false
 
   mes:
     integration:

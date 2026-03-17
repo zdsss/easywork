@@ -62,6 +62,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Flyway database migration (PostgreSQL support included in flyway-core 9.x) -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
         <!-- MyBatis Plus (Spring Boot 3.x compatible starter) -->
         <dependency>
             <groupId>com.baomidou</groupId>

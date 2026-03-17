@@ -2,6 +2,9 @@ package com.xiaobai.workorder.modules.report.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.exceptions.MybatisPlusException;
+import com.xiaobai.workorder.common.enums.DependencyType;
+import com.xiaobai.workorder.common.enums.WorkOrderStatus;
+import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.modules.audit.aspect.Auditable;
 import com.xiaobai.workorder.modules.mesintegration.event.ReportRecordSavedEvent;
@@ -18,7 +21,7 @@ import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
 import com.xiaobai.workorder.modules.workorder.repository.WorkOrderMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import com.xiaobai.workorder.config.WorkOrderProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,9 +40,7 @@ public class ReportService {
     private final WorkOrderMapper workOrderMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final OperationDependencyMapper operationDependencyMapper;
-
-    @Value("${app.workorder.force-start-before-report:false}")
-    private boolean forceStartBeforeReport;
+    private final WorkOrderProperties workOrderProperties;
 
     @Transactional
     @Auditable(operation = "START_WORK", targetType = "OPERATION")
@@ -75,8 +76,12 @@ public class ReportService {
             throw new BusinessException("Operation not found: " + request.getOperationId());
         }
 
-        // If force-start is enabled, operation must be STARTED before reporting
-        if (forceStartBeforeReport) {
+        // Determine force-start requirement per the work order's order type
+        WorkOrder orderForTypeCheck = workOrderMapper.selectById(operation.getWorkOrderId());
+        WorkOrderType orderType = orderForTypeCheck != null ? orderForTypeCheck.getOrderType() : null;
+        boolean forceStart = workOrderProperties.isForceStartBeforeReport(orderType);
+
+        if (forceStart) {
             if (!"STARTED".equals(operation.getStatus())) {
                 throw new BusinessException("Operation must be started before reporting, current status: " + operation.getStatus());
             }
@@ -197,8 +202,8 @@ public class ReportService {
                         .eq(OperationDependency::getDeleted, 0));
 
         for (OperationDependency dep : deps) {
-            if (!"SERIAL".equals(dep.getDependencyType())) {
-                continue; // PARALLEL and CONDITIONAL dependencies do not block
+            if (DependencyType.SERIAL != dep.getDependencyType()) {
+                continue; // PARALLEL dependencies do not block start
             }
             Operation predecessor = operationMapper.selectById(dep.getPredecessorOperationId());
             if (predecessor == null || predecessor.getDeleted() == 1) {
@@ -216,14 +221,14 @@ public class ReportService {
 
     private void updateWorkOrderStatusOnStart(Long workOrderId) {
         WorkOrder workOrder = workOrderMapper.selectById(workOrderId);
-        if (workOrder != null && "NOT_STARTED".equals(workOrder.getStatus())) {
-            String previousStatus = workOrder.getStatus();
-            workOrder.setStatus("STARTED");
+        if (workOrder != null && WorkOrderStatus.NOT_STARTED == workOrder.getStatus()) {
+            WorkOrderStatus previousStatus = workOrder.getStatus();
+            workOrder.setStatus(WorkOrderStatus.STARTED);
             workOrder.setActualStartTime(LocalDateTime.now());
             workOrderMapper.updateById(workOrder);
 
             eventPublisher.publishEvent(new WorkOrderStatusChangedEvent(
-                    this, workOrderId, previousStatus, "STARTED", null));
+                    this, workOrderId, previousStatus.name(), WorkOrderStatus.STARTED.name(), null));
         }
     }
 
@@ -245,13 +250,13 @@ public class ReportService {
         workOrder.setCompletedQuantity(totalCompleted);
 
         if (allReported) {
-            String previousStatus = workOrder.getStatus();
-            String newStatus = getEffectiveCompletedStatus(workOrder);
+            WorkOrderStatus previousStatus = workOrder.getStatus();
+            WorkOrderStatus newStatus = getEffectiveCompletedStatus(workOrder);
             workOrder.setStatus(newStatus);
             workOrderMapper.updateById(workOrder);
 
             eventPublisher.publishEvent(new WorkOrderStatusChangedEvent(
-                    this, workOrderId, previousStatus, newStatus, null));
+                    this, workOrderId, previousStatus.name(), newStatus.name(), null));
         } else {
             workOrderMapper.updateById(workOrder);
         }
@@ -262,12 +267,12 @@ public class ReportService {
      * PRODUCTION orders go to REPORTED (awaiting quality inspection).
      * INSPECTION, TRANSPORT, and ANDON orders go directly to COMPLETED.
      */
-    private String getEffectiveCompletedStatus(WorkOrder workOrder) {
-        String orderType = workOrder.getOrderType();
-        if ("PRODUCTION".equals(orderType)) {
-            return "REPORTED";
+    private WorkOrderStatus getEffectiveCompletedStatus(WorkOrder workOrder) {
+        WorkOrderType orderType = workOrder.getOrderType();
+        if (WorkOrderType.PRODUCTION == orderType) {
+            return WorkOrderStatus.REPORTED;
         }
         // INSPECTION, TRANSPORT, ANDON — all complete directly
-        return "COMPLETED";
+        return WorkOrderStatus.COMPLETED;
     }
 }

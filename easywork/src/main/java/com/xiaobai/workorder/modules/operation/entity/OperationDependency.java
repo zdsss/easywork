@@ -1,6 +1,7 @@
 package com.xiaobai.workorder.modules.operation.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.xiaobai.workorder.common.enums.DependencyType;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -13,8 +14,7 @@ public class OperationDependency {
 
     private Long operationId;
     private Long predecessorOperationId;
-    private String dependencyType; // SERIAL, PARALLEL, CONDITIONAL
-    private String conditionExpression;
+    private DependencyType dependencyType;
 
     @TableLogic
     private Integer deleted;

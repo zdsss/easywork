@@ -1,6 +1,6 @@
 # XiaoBai Easy WorkOrder System — 项目总览
 
-> 更新时间：2026-03-11
+> 最后更新：2026-03-17
 
 ---
 
@@ -10,9 +10,9 @@
 
 | 仓库 | 技术栈 | 说明 |
 |------|--------|------|
-| `easywork` | Spring Boot 3.2 / Java 21 | 后端 REST API |
-| `easywork-admin` | Vue 3 + Element Plus | 管理端前端（PC） |
-| `easywork-worker` | Vue 3 + Vant | 工人端前端（移动端） |
+| `easywork` | Spring Boot 3.2 / Java 21 / MyBatis-Plus / Flyway | 后端 REST API |
+| `easywork-admin` | Vue 3 + Vite 5.4 + Element Plus | 管理端前端（PC） |
+| `easywork-worker` | Vue 3 + Vite 5.4 + Vant | 工人端前端（工业 PDA / 移动端） |
 
 ---
 
@@ -84,7 +84,7 @@ NOT_STARTED → STARTED → COMPLETED（报工即完成，不走质检流程）
 
 ---
 
-## 五、完整 API 接口清单（24 个）
+## 五、完整 API 接口清单
 
 ### 5.1 认证
 
@@ -127,7 +127,7 @@ NOT_STARTED → STARTED → COMPLETED（报工即完成，不走质检流程）
 }
 ```
 
-> ⚠️ `username` 为必填字段（独立于 employeeNumber）
+> `username` 为必填字段（独立于 employeeNumber）
 
 ---
 
@@ -144,7 +144,7 @@ NOT_STARTED → STARTED → COMPLETED（报工即完成，不走质检流程）
 { "userIds": [3, 4] }
 ```
 
-> ⚠️ 目前后端无删除成员接口
+> 后端无删除成员接口
 
 ---
 
@@ -175,7 +175,7 @@ NOT_STARTED → STARTED → COMPLETED（报工即完成，不走质检流程）
 }
 ```
 
-> ⚠️ `orderNumber` 和 `orderType` 为必填字段
+> `orderNumber` 和 `orderType` 为必填字段；`orderType` 可选值：`PRODUCTION` / `INSPECTION` / `TRANSPORT` / `ANDON`
 
 **派工 Body：**
 ```json
@@ -197,30 +197,23 @@ operations[]: { id, operationName, operationNumber, sequenceNumber, status, plan
 
 ---
 
-### 5.5 管理端 — 质检（只读查看）
-
-> ℹ️ 质检操作已移至工人端（检验员在车间用手持设备提交）。管理端 InspectionView 仅供只读查看。
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/admin/inspections` | 提交质检（管理员也可用） |
-
-**待质检工单**：`GET /admin/work-orders?status=REPORTED`（无专用列表接口）
-
-### 5.5b 管理端 — 工单生命周期操作
+### 5.5 管理端 — 工单生命周期操作
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | PUT | `/api/admin/work-orders/:id/complete` | INSPECT_PASSED → COMPLETED |
 | PUT | `/api/admin/work-orders/:id/reopen` | INSPECT_FAILED → REPORTED（返工） |
 | POST | `/api/admin/work-orders/:id/rework` | 触发返工流程 |
+| POST | `/api/admin/inspections` | 提交质检（管理员也可用） |
 
-### 5.5c 管理端 — 工序依赖 & 审计日志
+> 待质检工单：`GET /admin/work-orders?status=REPORTED`（无专用列表接口）
+
+### 5.5b 管理端 — 工序依赖 & 审计日志
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/admin/operations/:id/dependencies` | 查询工序依赖 |
-| POST | `/api/admin/operations/:id/dependencies` | 添加工序依赖 |
+| POST | `/api/admin/operations/:id/dependencies` | 添加工序依赖（仅 SERIAL / PARALLEL 类型） |
 | GET | `/api/admin/audit-logs` | 操作审计日志（ISO 9001） |
 
 ---
@@ -237,7 +230,7 @@ totalWorkOrders / notStartedCount / startedCount / reportedCount / completedCoun
 overallCompletionRate / typeStats[] / workerStats[]
 ```
 
-**workerStats 字段：** `userId / realName / employeeNumber / reportCount / totalReported`
+> `completedCount` = INSPECT_PASSED + COMPLETED（语义：已通过质检的工单数）
 
 ---
 
@@ -248,10 +241,7 @@ overallCompletionRate / typeStats[] / workerStats[]
 | GET | `/api/admin/mes-integration/stats` | MES 同步统计 |
 | GET | `/api/admin/mes-integration/logs?page=1&size=20&direction=&status=&syncType=` | 同步日志（**分页**，返回 `{records,total,current,size,pages}`） |
 
-**direction 值：** `INBOUND`（从MES）/ `OUTBOUND`（到MES）
-**status 值：** `PENDING` / `SUCCESS` / `FAILED` / `RETRYING`
-
-> ⚠️ MES 默认关闭（`app.mes.integration.enabled: false`）
+> MES 默认关闭（`app.mes.integration.enabled: false`）
 
 ---
 
@@ -270,13 +260,13 @@ overallCompletionRate / typeStats[] / workerStats[]
 | POST | `/api/device/call/transport` | 搬运呼叫 |
 | POST | `/api/device/scan/start` | 条码扫描开工（工单号/工序号双模式，自动匹配最早未开工工序） |
 | POST | `/api/device/scan/report` | 条码扫描报工 |
-| POST | `/api/device/batch/start` | 批量开工 |
-| POST | `/api/device/batch/report` | 批量报工 |
+| POST | `/api/device/batch/start` | 批量开工（支持幂等 Key） |
+| POST | `/api/device/batch/report` | 批量报工（支持幂等 Key） |
 
 **质检 Body：**
 ```json
 {
-  "operationId": 1,
+  "workOrderId": 1,
   "inspectionResult": "PASSED",
   "inspectedQuantity": 100,
   "qualifiedQuantity": 98,
@@ -286,12 +276,9 @@ overallCompletionRate / typeStats[] / workerStats[]
 }
 ```
 
-> `inspectionResult` 可选值：`"PASSED"` / `"FAILED"` / `"REWORK"` / `"SCRAP_MATERIAL"` / `"SCRAP_PROCESS"`
+> `inspectionResult` 可选值：`PASSED` / `FAILED` / `REWORK` / `SCRAP_MATERIAL` / `SCRAP_PROCESS`
 
-**开工 Body：**
-```json
-{ "operationId": 1 }
-```
+**开工 Body：** `{ "operationId": 1 }`
 
 **报工 Body：**
 ```json
@@ -304,28 +291,17 @@ overallCompletionRate / typeStats[] / workerStats[]
 }
 ```
 
-**撤销 Body：**
-```json
-{
-  "operationId": 1,
-  "undoReason": "数量填错"
-}
-```
+**撤销 Body：** `{ "operationId": 1, "undoReason": "数量填错" }`
 
-**呼叫 Body（workOrderId 必填）：**
-```json
-{
-  "workOrderId": 1,
-  "operationId": 1,
-  "description": "描述"
-}
-```
+**呼叫 Body：** `{ "workOrderId": 1, "operationId": 1, "description": "描述" }`
 
-> ⚠️ `GET /api/device/work-orders/:id` **不存在**。工人端详情通过列表数据传递，无需单独请求。
+**批量操作幂等：** 请求头携带 `Idempotency-Key: <UUID>`，服务端 Redis 缓存 30 分钟结果，重放请求直接返回缓存响应。
+
+> `GET /api/device/work-orders/:id` **不存在**。工人端详情通过列表数据传递。
 
 ---
 
-### 5.9 MES Webhook（外部推送）
+### 5.9 MES Webhook
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -349,22 +325,10 @@ overallCompletionRate / typeStats[] / workerStats[]
 
 **分页响应格式（仅 MES logs 使用）：**
 ```json
-{
-  "code": 200,
-  "data": {
-    "records": [...],
-    "total": 100,
-    "current": 1,
-    "size": 20,
-    "pages": 5
-  }
-}
+{ "code": 200, "data": { "records": [...], "total": 100, "current": 1, "size": 20, "pages": 5 } }
 ```
 
-**其余列表接口** `data` 直接为 Array：
-```json
-{ "code": 200, "data": [...] }
-```
+**其余列表接口** `data` 直接为 Array。
 
 ---
 
@@ -373,6 +337,7 @@ overallCompletionRate / typeStats[] / workerStats[]
 - **Token 存储**：`localStorage`，key = `token`
 - **请求头**：`Authorization: Bearer <token>`
 - **有效期**：24 小时
+- **Secret**：生产环境必须通过环境变量 `JWT_SECRET` 注入
 - **401/403 处理**：axios 拦截器自动跳转 `/login`
 
 ---
@@ -385,36 +350,20 @@ overallCompletionRate / typeStats[] / workerStats[]
 easywork-admin/
 ├── vite.config.js          # 端口 5173，proxy /api → 8080
 ├── src/
-│   ├── main.js             # Element Plus + Pinia + Router
-│   ├── App.vue
 │   ├── api/
 │   │   ├── http.js         # Axios 拦截器（token注入、错误弹窗、401跳转）
-│   │   ├── auth.js         # POST /api/auth/login
 │   │   ├── workorder.js    # 工单 CRUD + assign + complete + reopen
-│   │   ├── user.js         # 用户 CRUD
-│   │   ├── team.js         # 班组管理 + 成员
-│   │   ├── inspection.js   # 质检提交 + 待质检工单查询
 │   │   ├── dependency.js   # 工序依赖 GET/POST
 │   │   ├── statistics.js   # 统计看板
 │   │   └── mes.js          # MES stats + logs
-│   ├── stores/
-│   │   └── auth.js         # Pinia: token/userId/employeeNumber/realName/role
-│   ├── router/
-│   │   └── index.js        # 路由守卫（未登录→/login）
-│   ├── layouts/
-│   │   └── MainLayout.vue  # 侧边栏 + 顶栏（含退出）
 │   ├── utils/
 │   │   └── statusLabel.js  # orderType × status → 中文标签 + Element Plus tag 类型
 │   └── views/
-│       ├── LoginView.vue
-│       ├── DashboardView.vue
+│       ├── DashboardView.vue           # 统计看板（ECharts，含 resize 监听）
 │       ├── workorder/
-│       │   ├── WorkOrderListView.vue    # 列表 + 状态筛选（含 SCRAPPED）
-│       │   ├── WorkOrderCreateView.vue  # 创建（4 种 orderType）+ 动态工序
-│       │   └── WorkOrderDetailView.vue  # 详情 + 派工 + 工序依赖配置 + 完成/返工
-│       ├── UserView.vue        # 用户列表 + Drawer创建
-│       ├── TeamView.vue        # 班组列表 + 成员管理
-│       ├── InspectionView.vue  # 只读查看质检记录（操作已移至工人端）
+│       │   ├── WorkOrderListView.vue   # 列表 + 状态筛选（含 SCRAPPED）
+│       │   ├── WorkOrderCreateView.vue # 创建（4 种 orderType）+ 动态工序
+│       │   └── WorkOrderDetailView.vue # 详情 + 派工 + 依赖有向图（Vue Flow + Kahn 拓扑）+ 完成/返工
 │       ├── AuditLogView.vue    # 操作审计日志（ISO 9001）
 │       └── MesView.vue         # MES 统计 + 日志表格
 ```
@@ -424,63 +373,37 @@ easywork-admin/
 ```
 easywork-worker/
 ├── vite.config.js          # 端口 5174，proxy /api → 8080
-├── index.html              # 移动端 viewport meta
-├── public/
-│   └── sw.js               # Service Worker（离线队列支持）
+├── public/sw.js            # Service Worker（离线队列支持）
 ├── src/
-│   ├── main.js             # Vant + Pinia + Router
-│   ├── App.vue
-│   ├── api/
-│   │   ├── http.js         # Axios 拦截器（同 admin）
-│   │   ├── auth.js         # POST /api/auth/login
-│   │   ├── workorder.js    # GET /api/device/work-orders + submitInspection
-│   │   ├── report.js       # start / report / report/undo / batch
-│   │   ├── scan.js         # scan/start + scan/report（条码扫描）
-│   │   └── call.js         # andon / inspection / transport
-│   ├── stores/
-│   │   ├── auth.js         # 同 admin
-│   │   └── scan.js         # 条码扫描状态
-│   ├── router/
-│   │   └── index.js        # 路由守卫
 │   ├── composables/
-│   │   ├── useHardwareInput.js  # 硬件输入层：扫码枪识别（50ms）/ 导航 / 快捷键
-│   │   ├── usePhysicalKeys.js   # 原始键盘层（保留，TestView 使用）
-│   │   ├── useNetworkStatus.js  # 网络状态监听
-│   │   └── useBatteryStatus.js  # 电池状态监听
+│   │   ├── useHardwareInput.js  # 硬件输入层：扫码枪识别（50ms）/ 方向键 / 快捷键 / ESC
+│   │   └── usePhysicalKeys.js   # 原始键盘层（TestView 使用）
 │   ├── utils/
 │   │   ├── statusLabel.js  # orderType × status → 中文标签 + Vant tag 类型
-│   │   └── offlineQueue.js # IndexedDB 离线队列工具
+│   │   └── offlineQueue.js # IndexedDB 离线队列（断网排队/联网重放）
 │   ├── components/
 │   │   ├── KeyHints.vue    # 固定在 tabbar 上方的快捷键提示条
-│   │   ├── T9Input.vue     # T9 九键键盘（支持 v-model，含字母切换）
+│   │   ├── T9Input.vue     # T9 九键键盘（登录页密码输入）
 │   │   └── StatusBar.vue   # 右上角状态栏（网络/电池/扫码）
 │   └── views/
-│       ├── LoginView.vue            # 工号/密码（T9输入）/设备号
-│       ├── WorkOrderListView.vue    # 下拉刷新 + 工单卡片 + 方向键导航 + 扫码开工
-│       ├── WorkOrderDetailView.vue  # 开工/报工/质检/撤销 + 数字快捷键 1-5
-│       ├── ScanView.vue             # 扫码页（开工/报工模式切换，Tab键，摄像头）
-│       ├── CallView.vue             # 三种呼叫类型
-│       └── TestView.vue             # 硬件功能测试页
+│       ├── WorkOrderListView.vue    # 下拉刷新 + 方向键导航 + 焦点工单模型（currentIndex + n+1/total）
+│       ├── WorkOrderDetailView.vue  # 开工/报工/质检/撤销 + 快捷键 1-5 + 工序列表方向键导航
+│       ├── ScanView.vue             # 扫码页（开工/报工模式，Tab 键切换，摄像头 + 扫码枪）
+│       ├── BatchView.vue            # 批量操作（多选工序 + 批量开工/报工）
+│       └── CallView.vue             # 三种呼叫类型（Andon/质检/搬运）
 ```
-
----
-
 
 ---
 
 ## 九、启动方式
 
-```bash
-# Step 1：启动数据库（PostgreSQL + Redis）
+```powershell
+# Step 1：启动数据库（PostgreSQL + Redis，在 easywork\ 目录下执行）
 cd easywork
-docker-compose up -d postgres redis
+& "C:\Program Files\Docker\Docker\resources\bin\docker.exe" compose up -d postgres redis
 
-# Step 2：启动后端（需 Java 21）
-# Windows:      set JAVA_HOME=C:\path\to\jdk-21 && mvn spring-boot:run
-# macOS/Linux:  JAVA_HOME=/path/to/jdk-21 mvn spring-boot:run
-#
-# 若系统默认已是 Java 21，直接执行：
-mvn spring-boot:run
+# Step 2：启动后端（新终端，在 easywork\ 目录下执行）
+$env:JAVA_HOME="D:\Software\Java21"; & "D:\Software\apache-maven-3.9.13\bin\mvn" spring-boot:run
 
 # Step 3：启动管理端（新终端）
 cd easywork-admin
@@ -490,6 +413,10 @@ npm run dev   # → http://localhost:5173
 cd easywork-worker
 npm run dev   # → http://localhost:5174
 ```
+
+> 工具路径详见 `.claude.md` — 开发环境约束章节
+
+---
 
 ## 十、默认账号
 
@@ -508,29 +435,95 @@ npm run dev   # → http://localhost:5174
 | 工人端工单详情 | 无 `GET /device/work-orders/:id`，通过列表数据本地查找 |
 | MES 集成 | 默认关闭，配置 `app.mes.integration.enabled=true` 启用 |
 | deviceCode | `/device/login` 支持但需数据库中存在对应设备记录 |
-| 条码扫描 | 后端接口已实现（双模式）；前端扫码页面已完成（摄像头 + 扫码枪 + 手动输入） |
-| Java 版本 | Maven 需使用 Java 21（非系统默认 Java 25） |
+| 条码扫描 | 后端双模式（工单号/工序号）；前端支持摄像头 + 扫码枪 + 手动输入 |
+| Node.js 版本 | 前端 Vite 5.x 要求 Node.js 18+（LTS）；不要升级 Vite 到 7.x |
 | 分页 | 仅 MES logs 返回分页对象；其余列表接口返回 Array |
-| 强制开工配置 | `app.workorder.force-start-before-report: false`，开启后报工前必须先开工 |
-| 工序依赖执行 | 仅 SERIAL 类型前置工序会阻塞开工；PARALLEL 类型不阻塞 |
+| 强制开工配置 | `app.workorder.force-start-before-report` 支持按 orderType 配置（map 结构） |
+| 工序依赖执行 | 仅 SERIAL 类型前置工序阻塞开工；PARALLEL 不阻塞 |
+| 幂等性 | 批量操作支持 `Idempotency-Key` 请求头（UUID）；Redis 缓存 30min |
+| Flyway | V1.x SQL 自动应用（`baseline-on-migrate: true`，`baseline-version: 1.6`）|
 
 ---
 
-## 十二、验收测试结果
+## 十二、测试状态
 
-**单元测试：** 147 个，全部通过 ✅（2026-03-15）
+**单元测试：** 140 个，全部通过 ✅（2026-03-17）
+
+**集成测试：** 7 个（需 Docker PostgreSQL，`@ActiveProfiles("integration-test")`）
+
 **测试框架：** JUnit 5 + Mockito + Spring Boot Test
 
-| 测试类 | 测试数 |
-|--------|--------|
-| ReportServiceTest | 含 7 个新增（多 orderType + 前置依赖检查） |
-| InspectionServiceTest | 含 2 个新增（REWORK/SCRAP 分支） |
-| DeviceControllerTest | 含 5 个新增（扫码匹配 + 质检接口） |
-| OperationDependencyServiceTest | 2（新增） |
-| 其他现有测试 | 全部通过 ✅ |
+| 测试类 | 覆盖重点 |
+|--------|---------|
+| ReportServiceTest | 报工状态机（多 orderType + 前置依赖检查 + 撤销） |
+| WorkOrderServiceTest | 工单生命周期（创建/派工/完成/返工/去重排序） |
+| InspectionServiceTest | 质检结果分支（PASSED/FAILED/REWORK/SCRAP + 事件发布） |
+| DeviceControllerTest | BFF 层 HTTP + 权限控制 + 扫码匹配逻辑 |
+| WorkOrderMapperIntegrationTest | Mapper 层集成（需 PostgreSQL） |
+| ReportServiceConcurrentIntegrationTest | 并发报工（需 PostgreSQL） |
 
-**端到端流程验证（2026-03-11 原始 + 2026-03-14 补充）：**
+**端到端流程验证：**
 - `NOT_STARTED → STARTED → REPORTED → INSPECT_PASSED → COMPLETED` ✅
 - `PRODUCTION 报工 → INSPECT_FAILED → reopen → 重新报工` ✅
 - `INSPECTION 工单报工 → 直接 COMPLETED（不走质检）` ✅
-- `工序依赖：前置未完成 → 阻塞开工` ✅
+- 工序依赖：前置未完成 → 阻塞开工 ✅
+- 扫码开工：工单条码 → 自动开工最前道未开工工序 ✅
+- 离线队列：断网操作 → 联网后自动重放并显示结果 ✅
+
+---
+
+## 十三、更新历史
+
+### 2026-03-17 — CTO 审查 v2 优化（Q 系列 + N 系列 + C 系列）
+
+| 编号 | 内容 |
+|------|------|
+| Q-1 | 引入 Flyway 自动迁移（`flyway-core` 9.x），消除手动建表风险 |
+| Q-2 | `WorkOrderStatus` / `WorkOrderType` / `DependencyType` 提取为 Java Enum + `EnumTypeHandler`，消除字符串字面量 |
+| Q-3 | 批量操作幂等：工人端生成 UUID 作为 `Idempotency-Key`，`IdempotencyService` Redis 缓存 30 分钟结果 |
+| Q-4 | JWT secret 强制环境变量注入（移除默认值，启动失败优于弱密钥） |
+| N-1 | 实现"让步接收"质检结果（`ACCEPT_WITH_CONCESSION`）：后端枚举分支 + 工人端按钮 + 状态标签 |
+| N-3 | 工人端批量操作快捷键：列表页数字键 `1`=全部开工 / `2`=全部报工，直接调用 `BatchView` 逻辑 |
+| C-1 | CONDITIONAL 依赖类型彻底移除（后端枚举 + Mapper XML + 管理端 UI 全部清理） |
+| C-2 | 强制开工配置改为按 `orderType` 的 map 结构（替代全局 bool） |
+
+### 2026-03-16 — CTO 审查 v1 P0-P3 修复
+
+| 编号 | 内容 |
+|------|------|
+| P0-A | `OperationDependencyService.getPredecessors()` 查询方向修复 |
+| P0-B | `useHardwareInput.js` 扫码枪 + 输入框焦点兼容（普通字符透传，扫码 Enter 强制拦截） |
+| P0-C | `WorkOrderListView` 焦点工单模型（`currentIndex` + `n+1/total` 显示） |
+| P0-D | `WorkOrderService.completeWorkOrder()` 按 `orderType` 分支（非生产工单 REPORTED → COMPLETED） |
+| P1-A | 报工数量快捷键：整数追加（`current×10+digit`）+ Backspace 删末位 |
+| P1-B | `WorkOrderDetailView` 工序列表方向键导航（`activeOpIndex` + `scrollIntoView`） |
+| P1-C | 扫码班组匹配：`findEarliestNotStartedByUserAndWorkOrder` 定位最前道未开工工序 |
+| P1-D | 管理端工单创建依赖失败通知（`ElMessage.warning` 列出失败项） |
+| P1-E | 离线队列失败通知（返回 `{processed, failed, skipped}`） |
+| P2-A | `WorkOrder` 实体 `@Version` 乐观锁 + V1.6 迁移 |
+| P2-B | `operation_dependencies` UNIQUE 约束 + 索引（V1.6 迁移） |
+| P2-C | `AuditLogAspect` `@Transactional` + `SecurityUtils` 注入（修复 audit log user_id=null → 500） |
+| P2-D | `StatisticsService` `completedCount` 语义统一（INSPECT_PASSED + COMPLETED） |
+| P2-E | 管理端依赖图 Kahn 拓扑排序布局（消除节点重叠） |
+| P2-F | `DashboardView` ECharts `window.resize` 监听 |
+| P3-C | 管理端移除 CONDITIONAL 依赖类型 UI 选项 |
+| 兼容 | `easywork-admin` Vite 7.x → 5.4.0（Node 18 兼容） |
+
+### 2026-03-15 — 硬件输入层与工人端核心交互
+
+- `useHardwareInput.js` 硬件输入语义化层（扫码枪识别 50ms 阈值、方向键、数字快捷键 1-5、ESC）
+- `KeyHints.vue` 固定快捷键提示条
+- `WorkOrderListView` 替换为 `useHardwareInput`，扫码开工后刷新并跳转详情
+- `WorkOrderDetailView` 数字快捷键 1=开工/2=报工/3=质检/4=撤销/5=返工
+- `ScanView` 开工/报工模式切换（Tab 键）
+
+### 2026-03-14 — 核心功能实现
+
+- SCRAPPED 终态（V1.5 迁移）
+- `ReportService` 按 `orderType` 分支处理状态流转 + 串行前置工序依赖检查
+- `POST /api/device/inspect` 新增（检验员工人端提交质检）
+- `InspectionService` 扩展 REWORK/SCRAP 分支
+- 工人端检验工单「提交质检」按钮；`statusLabel.js` 按 `orderType` 映射
+- T9 九键键盘（工人端登录页）
+- `BatchView.vue` 批量开工/报工；`ScanView.vue` 扫码页（摄像头 + 扫码枪）
+- 管理端工序依赖有向图（Vue Flow）；按 `orderType` 分组展示完成率

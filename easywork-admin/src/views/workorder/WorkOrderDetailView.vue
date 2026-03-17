@@ -98,9 +98,8 @@
       <div v-if="deps.length > 0" style="margin-bottom: 16px">
         <div style="font-weight: 600; margin-bottom: 8px">当前依赖</div>
         <el-table :data="deps" size="small" stripe>
-          <el-table-column prop="predecessorId" label="前置工序ID" width="120" />
-          <el-table-column prop="type" label="依赖类型" width="120" />
-          <el-table-column prop="condition" label="条件表达式" />
+          <el-table-column prop="predecessorOperationId" label="前置工序ID" width="120" />
+          <el-table-column prop="dependencyType" label="依赖类型" width="120" />
         </el-table>
       </div>
       <div v-else style="color: #999; margin-bottom: 16px">暂无依赖配置</div>
@@ -208,7 +207,7 @@ const depVisible = ref(false)
 const activeDepOp = ref(null)
 const deps = ref([])
 const addingDep = ref(false)
-const depForm = reactive({ predecessorId: null, type: 'SERIAL', condition: '' })
+const depForm = reactive({ predecessorId: null, type: 'SERIAL' })
 
 const graphVisible = ref(false)
 const graphLoading = ref(false)
@@ -300,7 +299,7 @@ async function handleReopen() {
 
 async function openDepDialog(op) {
   activeDepOp.value = op
-  Object.assign(depForm, { predecessorId: null, type: 'SERIAL', condition: '' })
+  Object.assign(depForm, { predecessorId: null, type: 'SERIAL' })
   deps.value = []
   depVisible.value = true
   try {
@@ -322,13 +321,10 @@ async function handleAddDep() {
       predecessorId: depForm.predecessorId,
       type: depForm.type,
     }
-    if (depForm.type === 'CONDITIONAL' && depForm.condition) {
-      params.condition = depForm.condition
-    }
     await addDependency(params)
     ElMessage.success('依赖添加成功')
     deps.value = (await getDependencies(activeDepOp.value.id)) ?? []
-    Object.assign(depForm, { predecessorId: null, type: 'SERIAL', condition: '' })
+    Object.assign(depForm, { predecessorId: null, type: 'SERIAL' })
   } catch {
     // handled
   } finally {

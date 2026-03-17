@@ -110,10 +110,15 @@ function scrollToFocused() {
 }
 
 const keyHints = computed(() => {
-  if (batchMode.value) return []
+  if (batchMode.value) return [
+    { key: '7', label: '全部开工' },
+    { key: '8', label: '全部报工' },
+  ]
   return [
     { key: '↑↓', label: '切换' },
     { key: 'Enter', label: '进入' },
+    { key: '7', label: '全部开工' },
+    { key: '8', label: '全部报工' },
     { key: 'Scan', label: '扫码开工' },
   ]
 })
@@ -137,6 +142,15 @@ useHardwareInput({
     if (batchMode.value) return
     const order = list.value[currentIndex.value]
     if (order) goDetail(order.id)
+  },
+  onShortcut(key) {
+    if (key === '7') {
+      // 全部开工：一键开工所有可见工单中 NOT_STARTED 的工序
+      quickBatchStart()
+    } else if (key === '8') {
+      // 全部报工：一键报工所有可见工单中 STARTED 的工序
+      quickBatchReport()
+    }
   },
   async onScan(barcode) {
     if (batchMode.value) return
@@ -173,6 +187,42 @@ function handleCardClick(order, idx) {
   }
 }
 
+// Quick-batch: 全部开工 / 全部报工 triggered by hardware shortcut keys (7/8)
+// Operates on ALL visible work orders without entering batch-select mode.
+async function quickBatchStart() {
+  const operationIds = list.value.flatMap(o =>
+    (o.operations || []).filter(op => op.status === 'NOT_STARTED').map(op => op.id)
+  )
+  if (operationIds.length === 0) {
+    showToast('没有可开工的工序')
+    return
+  }
+  try {
+    await showConfirmDialog({ title: '全部开工', message: `将开工全部 ${operationIds.length} 个工序` })
+    const idempotencyKey = crypto.randomUUID()
+    await http.post('/device/batch/start', { operationIds }, { headers: { 'Idempotency-Key': idempotencyKey } })
+    showToast('全部开工成功')
+    onRefresh()
+  } catch {}
+}
+
+async function quickBatchReport() {
+  const operationIds = list.value.flatMap(o =>
+    (o.operations || []).filter(op => op.status === 'STARTED').map(op => op.id)
+  )
+  if (operationIds.length === 0) {
+    showToast('没有可报工的工序')
+    return
+  }
+  try {
+    await showConfirmDialog({ title: '全部报工', message: `将报工全部 ${operationIds.length} 个工序` })
+    const idempotencyKey = crypto.randomUUID()
+    await http.post('/device/batch/report', { operationIds }, { headers: { 'Idempotency-Key': idempotencyKey } })
+    showToast('全部报工成功')
+    onRefresh()
+  } catch {}
+}
+
 async function batchStart() {
   const selected = list.value.filter(o => o.checked)
   const operationIds = selected.flatMap(o =>
@@ -186,7 +236,8 @@ async function batchStart() {
 
   try {
     await showConfirmDialog({ title: '确认批量开工', message: `将开工 ${operationIds.length} 个工序` })
-    await http.post('/device/batch/start', { operationIds })
+    const idempotencyKey = crypto.randomUUID()
+    await http.post('/device/batch/start', { operationIds }, { headers: { 'Idempotency-Key': idempotencyKey } })
     showToast('批量开工成功')
     exitBatchMode()
     onRefresh()
@@ -206,7 +257,8 @@ async function batchReport() {
 
   try {
     await showConfirmDialog({ title: '确认批量报工', message: `将报工 ${operationIds.length} 个工序` })
-    await http.post('/device/batch/report', { operationIds })
+    const idempotencyKey = crypto.randomUUID()
+    await http.post('/device/batch/report', { operationIds }, { headers: { 'Idempotency-Key': idempotencyKey } })
     showToast('批量报工成功')
     exitBatchMode()
     onRefresh()

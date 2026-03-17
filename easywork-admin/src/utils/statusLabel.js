@@ -41,6 +41,28 @@ const OPERATION_LABELS = {
 }
 
 /**
+ * Human-readable labels for inspection record's inspectionResult field.
+ * CONCESSION (让步接收) maps to INSPECT_PASSED at work-order level but should
+ * display "让步接收" on the inspection record itself.
+ */
+export const INSPECTION_RESULT_LABELS = {
+  PASSED:        { label: '合格',     type: 'success' },
+  CONCESSION:    { label: '让步接收', type: 'warning' },
+  FAILED:        { label: '不合格',   type: 'danger'  },
+  REWORK:        { label: '返工',     type: 'warning' },
+  SCRAP_MATERIAL:{ label: '料废',     type: 'danger'  },
+  SCRAP_PROCESS: { label: '工废',     type: 'danger'  },
+}
+
+export function getInspectionResultLabel(result) {
+  return INSPECTION_RESULT_LABELS[result]?.label ?? result
+}
+
+export function getInspectionResultTagType(result) {
+  return INSPECTION_RESULT_LABELS[result]?.type ?? ''
+}
+
+/**
  * Get label for a work order (uses orderType for context) or a plain status string.
  * @param {object|null} workOrder
  * @param {string} [status]

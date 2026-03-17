@@ -8,6 +8,8 @@ import com.xiaobai.workorder.modules.operation.entity.Operation;
 import com.xiaobai.workorder.modules.operation.entity.OperationAssignment;
 import com.xiaobai.workorder.modules.operation.repository.OperationAssignmentMapper;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
+import com.xiaobai.workorder.common.enums.WorkOrderStatus;
+import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.modules.workorder.dto.AssignWorkOrderRequest;
 import com.xiaobai.workorder.modules.workorder.dto.CreateWorkOrderRequest;
 import com.xiaobai.workorder.modules.workorder.dto.UpdateWorkOrderRequest;
@@ -45,12 +47,12 @@ public class WorkOrderService {
 
         WorkOrder workOrder = new WorkOrder();
         workOrder.setOrderNumber(request.getOrderNumber());
-        workOrder.setOrderType(request.getOrderType());
+        workOrder.setOrderType(WorkOrderType.valueOf(request.getOrderType()));
         workOrder.setProductCode(request.getProductCode());
         workOrder.setProductName(request.getProductName());
         workOrder.setPlannedQuantity(request.getPlannedQuantity());
         workOrder.setCompletedQuantity(java.math.BigDecimal.ZERO);
-        workOrder.setStatus("NOT_STARTED");
+        workOrder.setStatus(WorkOrderStatus.NOT_STARTED);
         workOrder.setPriority(request.getPriority() != null ? request.getPriority() : 0);
         workOrder.setPlannedStartTime(request.getPlannedStartTime());
         workOrder.setPlannedEndTime(request.getPlannedEndTime());
@@ -161,7 +163,7 @@ public class WorkOrderService {
                 .orderByDesc(WorkOrder::getPriority)
                 .orderByDesc(WorkOrder::getCreatedAt);
         if (status != null && !status.isBlank()) {
-            wrapper.eq(WorkOrder::getStatus, status);
+            wrapper.eq(WorkOrder::getStatus, WorkOrderStatus.valueOf(status));
         }
         if (productName != null && !productName.isBlank()) {
             wrapper.like(WorkOrder::getProductName, productName);
@@ -184,25 +186,25 @@ public class WorkOrderService {
         if (workOrder == null || workOrder.getDeleted() == 1) {
             throw new BusinessException("Work order not found: " + id);
         }
-        String orderType = workOrder.getOrderType();
-        String currentStatus = workOrder.getStatus();
+        WorkOrderType orderType = workOrder.getOrderType();
+        WorkOrderStatus currentStatus = workOrder.getStatus();
         // PRODUCTION orders require quality inspection before completion
-        if ("PRODUCTION".equals(orderType)) {
-            if (!"INSPECT_PASSED".equals(currentStatus)) {
+        if (WorkOrderType.PRODUCTION == orderType) {
+            if (WorkOrderStatus.INSPECT_PASSED != currentStatus) {
                 throw new BusinessException(
                         "生产工单必须处于 INSPECT_PASSED 状态才能完成，当前状态：" + currentStatus);
             }
         } else {
             // INSPECTION, TRANSPORT, ANDON: REPORTED → COMPLETED directly
-            if (!"REPORTED".equals(currentStatus) && !"INSPECT_PASSED".equals(currentStatus)) {
+            if (WorkOrderStatus.REPORTED != currentStatus && WorkOrderStatus.INSPECT_PASSED != currentStatus) {
                 throw new BusinessException(
                         "工单无法完成，当前状态：" + currentStatus);
             }
         }
-        workOrder.setStatus("COMPLETED");
+        workOrder.setStatus(WorkOrderStatus.COMPLETED);
         workOrderMapper.updateById(workOrder);
         eventPublisher.publishEvent(new WorkOrderStatusChangedEvent(
-                this, id, currentStatus, "COMPLETED", null));
+                this, id, currentStatus.name(), WorkOrderStatus.COMPLETED.name(), null));
         log.info("Work order {} completed (type={})", id, orderType);
     }
 
@@ -212,15 +214,15 @@ public class WorkOrderService {
         if (workOrder == null || workOrder.getDeleted() == 1) {
             throw new BusinessException("Work order not found: " + id);
         }
-        if (!"INSPECT_FAILED".equals(workOrder.getStatus())) {
+        if (WorkOrderStatus.INSPECT_FAILED != workOrder.getStatus()) {
             throw new BusinessException(
                     "Work order must be in INSPECT_FAILED status to reopen, current: " + workOrder.getStatus());
         }
-        String previousStatus = workOrder.getStatus();
-        workOrder.setStatus("REPORTED");
+        WorkOrderStatus previousStatus = workOrder.getStatus();
+        workOrder.setStatus(WorkOrderStatus.REPORTED);
         workOrderMapper.updateById(workOrder);
         eventPublisher.publishEvent(new WorkOrderStatusChangedEvent(
-                this, id, previousStatus, "REPORTED", null));
+                this, id, previousStatus.name(), WorkOrderStatus.REPORTED.name(), null));
         log.info("Work order {} reopened for rework", id);
     }
 
@@ -270,7 +272,7 @@ public class WorkOrderService {
         WorkOrderDTO dto = new WorkOrderDTO();
         dto.setId(workOrder.getId());
         dto.setOrderNumber(workOrder.getOrderNumber());
-        dto.setOrderType(workOrder.getOrderType());
+        dto.setOrderType(workOrder.getOrderType() != null ? workOrder.getOrderType().name() : null);
         dto.setProductCode(workOrder.getProductCode());
         dto.setProductName(workOrder.getProductName());
         dto.setPlannedQuantity(workOrder.getPlannedQuantity());
@@ -279,7 +281,7 @@ public class WorkOrderService {
             dto.setRemainingQuantity(workOrder.getPlannedQuantity()
                     .subtract(workOrder.getCompletedQuantity()));
         }
-        dto.setStatus(workOrder.getStatus());
+        dto.setStatus(workOrder.getStatus() != null ? workOrder.getStatus().name() : null);
         dto.setPriority(workOrder.getPriority());
         dto.setPlannedStartTime(workOrder.getPlannedStartTime());
         dto.setPlannedEndTime(workOrder.getPlannedEndTime());

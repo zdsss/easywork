@@ -1,5 +1,6 @@
 package com.xiaobai.workorder.modules.operation.service;
 
+import com.xiaobai.workorder.common.enums.DependencyType;
 import com.xiaobai.workorder.modules.operation.entity.OperationDependency;
 import com.xiaobai.workorder.modules.operation.repository.OperationDependencyMapper;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,7 @@ class OperationDependencyServiceTest {
         OperationDependency dep = new OperationDependency();
         dep.setOperationId(3L);          // C depends on B
         dep.setPredecessorOperationId(2L); // B is the predecessor
-        dep.setDependencyType("SERIAL");
+        dep.setDependencyType(DependencyType.SERIAL);
 
         when(mapper.selectList(any())).thenReturn(List.of(dep));
 
@@ -44,7 +45,7 @@ class OperationDependencyServiceTest {
         OperationDependency dep = new OperationDependency();
         dep.setOperationId(2L);
         dep.setPredecessorOperationId(1L);
-        dep.setDependencyType("SERIAL");
+        dep.setDependencyType(DependencyType.SERIAL);
 
         when(mapper.selectList(any())).thenReturn(List.of(dep));
 

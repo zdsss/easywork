@@ -13,11 +13,14 @@ function openDB() {
 }
 
 export async function enqueue(item) {
+  // Assign a stable idempotency key at enqueue time so that retries on
+  // the same queued item always carry the same key, enabling server-side dedup.
+  const idempotencyKey = item.idempotencyKey ?? crypto.randomUUID()
   const db = await openDB()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite')
     const store = tx.objectStore(STORE)
-    const req = store.add({ ...item, timestamp: Date.now() })
+    const req = store.add({ ...item, idempotencyKey, timestamp: Date.now() })
     req.onsuccess = () => resolve(req.result)
     req.onerror = (e) => reject(e.target.error)
   })
@@ -77,7 +80,10 @@ export async function processQueue(httpInstance) {
     }
 
     try {
-      await httpInstance({ method: item.method, url: item.url, data: item.body })
+      const headers = item.idempotencyKey
+        ? { 'Idempotency-Key': item.idempotencyKey }
+        : undefined
+      await httpInstance({ method: item.method, url: item.url, data: item.body, headers })
       await dequeue(item.id)
       processed++
     } catch (e) {

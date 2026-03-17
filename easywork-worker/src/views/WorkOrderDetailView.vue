@@ -118,8 +118,8 @@
       >
         <van-cell title="检验结果">
           <template #value>
-            <van-tag :type="inspection.inspectionResult === 'PASSED' ? 'success' : 'danger'">
-              {{ inspection.inspectionResult === 'PASSED' ? '通过' : '不通过' }}
+            <van-tag :type="getInspectionResultTagType(inspection.inspectionResult)">
+              {{ getInspectionResultLabel(inspection.inspectionResult) }}
             </van-tag>
           </template>
         </van-cell>
@@ -238,6 +238,7 @@
           <template #input>
             <van-radio-group v-model="inspectForm.inspectionResult" direction="horizontal">
               <van-radio name="PASSED">合格</van-radio>
+              <van-radio name="CONCESSION">让步接收</van-radio>
               <van-radio name="FAILED">不合格</van-radio>
               <van-radio name="REWORK">返工</van-radio>
               <van-radio name="SCRAP_MATERIAL">料废</van-radio>
@@ -288,7 +289,7 @@ import { getWorkOrders, getInspectionDetail, createRework, submitInspection } fr
 import { startWork, reportWork, undoReport } from '@/api/report'
 import { useNetworkStatus } from '@/composables/useNetworkStatus'
 import { enqueue, processQueue } from '@/utils/offlineQueue'
-import { getStatusLabel, getStatusTagType } from '@/utils/statusLabel'
+import { getStatusLabel, getStatusTagType, getInspectionResultLabel, getInspectionResultTagType } from '@/utils/statusLabel'
 import { useHardwareInput } from '@/composables/useHardwareInput'
 import { scanStart, scanReport } from '@/api/scan'
 import KeyHints from '@/components/KeyHints.vue'

@@ -1,6 +1,8 @@
 package com.xiaobai.workorder.modules.workorder.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.xiaobai.workorder.common.enums.WorkOrderStatus;
+import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.modules.operation.entity.Operation;
 import com.xiaobai.workorder.modules.operation.entity.OperationAssignment;
@@ -97,7 +99,7 @@ class WorkOrderServiceTest {
 
     @Test
     void getWorkOrderById_existingId_returnsDTO() {
-        WorkOrder wo = buildWorkOrder(1L, "NOT_STARTED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
         when(operationMapper.findByWorkOrderId(1L)).thenReturn(List.of());
 
@@ -117,8 +119,8 @@ class WorkOrderServiceTest {
 
     @Test
     void getAssignedWorkOrders_deduplicatesMergesDirectAndTeamOrders() {
-        WorkOrder wo1 = buildWorkOrder(1L, "NOT_STARTED");
-        WorkOrder wo2 = buildWorkOrder(2L, "STARTED");
+        WorkOrder wo1 = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
+        WorkOrder wo2 = buildWorkOrder(2L, WorkOrderStatus.STARTED);
         // wo1 appears in both results - should be deduplicated
         when(workOrderMapper.findByDirectUserId(10L)).thenReturn(List.of(wo1));
         when(workOrderMapper.findByTeamMemberId(10L)).thenReturn(List.of(wo1, wo2));
@@ -131,9 +133,9 @@ class WorkOrderServiceTest {
 
     @Test
     void getAssignedWorkOrders_sortsByPriorityDesc() {
-        WorkOrder lowPriority = buildWorkOrder(1L, "NOT_STARTED");
+        WorkOrder lowPriority = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
         lowPriority.setPriority(1);
-        WorkOrder highPriority = buildWorkOrder(2L, "NOT_STARTED");
+        WorkOrder highPriority = buildWorkOrder(2L, WorkOrderStatus.NOT_STARTED);
         highPriority.setPriority(5);
 
         when(workOrderMapper.findByDirectUserId(10L)).thenReturn(List.of(lowPriority, highPriority));
@@ -196,7 +198,7 @@ class WorkOrderServiceTest {
 
     @Test
     void should_filterByProductName_when_productNameProvided() {
-        WorkOrder matching = buildWorkOrder(1L, "NOT_STARTED");
+        WorkOrder matching = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
         matching.setProductName("轴承盖板");
 
         Page<WorkOrder> page = new Page<>();
@@ -212,8 +214,8 @@ class WorkOrderServiceTest {
 
     @Test
     void should_returnAll_when_productNameIsNull() {
-        WorkOrder wo1 = buildWorkOrder(1L, "NOT_STARTED");
-        WorkOrder wo2 = buildWorkOrder(2L, "STARTED");
+        WorkOrder wo1 = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
+        WorkOrder wo2 = buildWorkOrder(2L, WorkOrderStatus.STARTED);
 
         Page<WorkOrder> page = new Page<>();
         page.setRecords(List.of(wo1, wo2));
@@ -227,20 +229,20 @@ class WorkOrderServiceTest {
 
     @Test
     void completeWorkOrder_inspectPassed_transitionsToCompleted() {
-        WorkOrder wo = buildWorkOrder(1L, "INSPECT_PASSED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.INSPECT_PASSED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         workOrderService.completeWorkOrder(1L);
 
         ArgumentCaptor<WorkOrder> captor = ArgumentCaptor.forClass(WorkOrder.class);
         verify(workOrderMapper).updateById(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo("COMPLETED");
+        assertThat(captor.getValue().getStatus()).isEqualTo(WorkOrderStatus.COMPLETED);
         verify(eventPublisher).publishEvent(any());
     }
 
     @Test
     void completeWorkOrder_wrongStatus_throwsBusinessException() {
-        WorkOrder wo = buildWorkOrder(1L, "REPORTED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.REPORTED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         assertThatThrownBy(() -> workOrderService.completeWorkOrder(1L))
@@ -259,20 +261,20 @@ class WorkOrderServiceTest {
 
     @Test
     void reopenWorkOrder_inspectFailed_transitionsToReported() {
-        WorkOrder wo = buildWorkOrder(1L, "INSPECT_FAILED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.INSPECT_FAILED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         workOrderService.reopenWorkOrder(1L);
 
         ArgumentCaptor<WorkOrder> captor = ArgumentCaptor.forClass(WorkOrder.class);
         verify(workOrderMapper).updateById(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo("REPORTED");
+        assertThat(captor.getValue().getStatus()).isEqualTo(WorkOrderStatus.REPORTED);
         verify(eventPublisher).publishEvent(any());
     }
 
     @Test
     void reopenWorkOrder_wrongStatus_throwsBusinessException() {
-        WorkOrder wo = buildWorkOrder(1L, "INSPECT_PASSED");
+        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.INSPECT_PASSED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         assertThatThrownBy(() -> workOrderService.reopenWorkOrder(1L))
@@ -292,11 +294,11 @@ class WorkOrderServiceTest {
         return req;
     }
 
-    private WorkOrder buildWorkOrder(Long id, String status) {
+    private WorkOrder buildWorkOrder(Long id, WorkOrderStatus status) {
         WorkOrder wo = new WorkOrder();
         wo.setId(id);
         wo.setOrderNumber("WO-00" + id);
-        wo.setOrderType("PRODUCTION");
+        wo.setOrderType(WorkOrderType.PRODUCTION);
         wo.setStatus(status);
         wo.setPlannedQuantity(BigDecimal.TEN);
         wo.setCompletedQuantity(BigDecimal.ZERO);

@@ -9,6 +9,8 @@ import com.xiaobai.workorder.modules.mesintegration.dto.MesWorkOrderImportReques
 import com.xiaobai.workorder.modules.mesintegration.entity.MesOrderMapping;
 import com.xiaobai.workorder.modules.mesintegration.entity.MesSyncLog;
 import com.xiaobai.workorder.modules.mesintegration.repository.MesOrderMappingMapper;
+import com.xiaobai.workorder.common.enums.WorkOrderStatus;
+import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.modules.operation.entity.Operation;
 import com.xiaobai.workorder.modules.operation.entity.OperationAssignment;
 import com.xiaobai.workorder.modules.operation.repository.OperationAssignmentMapper;
@@ -113,13 +115,14 @@ public class MesInboundService {
 
         WorkOrder wo = new WorkOrder();
         wo.setOrderNumber(orderNumber);
-        wo.setOrderType(req.getOrderType() != null ? req.getOrderType() : "PRODUCTION");
+        wo.setOrderType(req.getOrderType() != null
+                ? WorkOrderType.valueOf(req.getOrderType()) : WorkOrderType.PRODUCTION);
         wo.setProductCode(req.getProductCode());
         wo.setProductName(req.getProductName());
         wo.setPlannedQuantity(req.getPlannedQuantity() != null
                 ? req.getPlannedQuantity() : BigDecimal.ONE);
         wo.setCompletedQuantity(BigDecimal.ZERO);
-        wo.setStatus("NOT_STARTED");
+        wo.setStatus(WorkOrderStatus.NOT_STARTED);
         wo.setPriority(req.getPriority() != null ? req.getPriority() : 0);
         wo.setPlannedStartTime(req.getPlannedStartTime());
         wo.setPlannedEndTime(req.getPlannedEndTime());

@@ -10,6 +10,7 @@ import com.xiaobai.workorder.modules.auth.service.AuthService;
 import com.xiaobai.workorder.modules.call.entity.CallRecord;
 import com.xiaobai.workorder.modules.call.service.CallService;
 import com.xiaobai.workorder.modules.device.service.DeviceService;
+import com.xiaobai.workorder.modules.device.service.IdempotencyService;
 import com.xiaobai.workorder.modules.inspection.dto.InspectionRequest;
 import com.xiaobai.workorder.modules.inspection.entity.InspectionRecord;
 import com.xiaobai.workorder.modules.inspection.service.InspectionService;
@@ -61,6 +62,7 @@ class DeviceControllerTest {
     @MockBean InspectionService inspectionService;
     @MockBean OperationMapper operationMapper;
     @MockBean ReworkService reworkService;
+    @MockBean IdempotencyService idempotencyService;
     @MockBean SecurityUtils securityUtils;
     @MockBean JwtTokenProvider jwtTokenProvider;
     @MockBean UserDetailsServiceImpl userDetailsServiceImpl;

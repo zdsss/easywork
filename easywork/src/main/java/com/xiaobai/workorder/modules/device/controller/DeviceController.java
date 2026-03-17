@@ -12,6 +12,7 @@ import com.xiaobai.workorder.modules.call.service.CallService;
 import com.xiaobai.workorder.modules.inspection.entity.InspectionRecord;
 import com.xiaobai.workorder.modules.inspection.service.InspectionService;
 import com.xiaobai.workorder.modules.device.service.DeviceService;
+import com.xiaobai.workorder.modules.device.service.IdempotencyService;
 import com.xiaobai.workorder.modules.operation.entity.ReworkRecord;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
 import com.xiaobai.workorder.modules.operation.service.ReworkService;
@@ -47,6 +48,7 @@ public class DeviceController {
     private final ReworkService reworkService;
     private final OperationMapper operationMapper;
     private final SecurityUtils securityUtils;
+    private final IdempotencyService idempotencyService;
 
     @Operation(summary = "Device login with employee number and password")
     @PostMapping("/login")
@@ -183,9 +185,23 @@ public class DeviceController {
         return ApiResponse.success(callService.createCall(req, userId));
     }
 
-    @Operation(summary = "Batch start multiple operations")
+    @Operation(summary = "Batch start multiple operations",
+               description = "Supply an 'Idempotency-Key' UUID header to enable exactly-once semantics " +
+                             "— identical keys return the cached result for 30 minutes.")
     @PostMapping("/batch/start")
-    public ApiResponse<List<Map<String, Object>>> batchStartWork(@RequestBody Map<String, Object> body) {
+    public ApiResponse<List<Map<String, Object>>> batchStartWork(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestBody Map<String, Object> body) {
+        // Return cached result for duplicate requests
+        if (idempotencyKey != null) {
+            Object cached = idempotencyService.getCached("batch-start:" + idempotencyKey);
+            if (cached != null) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> cachedResult = (List<Map<String, Object>>) cached;
+                return ApiResponse.success(cachedResult);
+            }
+        }
+
         @SuppressWarnings("unchecked")
         List<Number> ids = (List<Number>) body.get("operationIds");
         if (ids == null || ids.isEmpty()) {
@@ -202,12 +218,30 @@ public class DeviceController {
                 results.add(Map.of("operationId", opId, "status", "ERROR", "message", e.getMessage()));
             }
         }
+
+        if (idempotencyKey != null) {
+            idempotencyService.cache("batch-start:" + idempotencyKey, results);
+        }
         return ApiResponse.success(results);
     }
 
-    @Operation(summary = "Batch report multiple operations")
+    @Operation(summary = "Batch report multiple operations",
+               description = "Supply an 'Idempotency-Key' UUID header to enable exactly-once semantics " +
+                             "— identical keys return the cached result for 30 minutes.")
     @PostMapping("/batch/report")
-    public ApiResponse<List<Map<String, Object>>> batchReportWork(@RequestBody Map<String, Object> body) {
+    public ApiResponse<List<Map<String, Object>>> batchReportWork(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestBody Map<String, Object> body) {
+        // Return cached result for duplicate requests
+        if (idempotencyKey != null) {
+            Object cached = idempotencyService.getCached("batch-report:" + idempotencyKey);
+            if (cached != null) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> cachedResult = (List<Map<String, Object>>) cached;
+                return ApiResponse.success(cachedResult);
+            }
+        }
+
         @SuppressWarnings("unchecked")
         List<Number> ids = (List<Number>) body.get("operationIds");
         if (ids == null || ids.isEmpty()) {
@@ -225,6 +259,10 @@ public class DeviceController {
             } catch (Exception e) {
                 results.add(Map.of("operationId", opId, "status", "ERROR", "message", e.getMessage()));
             }
+        }
+
+        if (idempotencyKey != null) {
+            idempotencyService.cache("batch-report:" + idempotencyKey, results);
         }
         return ApiResponse.success(results);
     }
