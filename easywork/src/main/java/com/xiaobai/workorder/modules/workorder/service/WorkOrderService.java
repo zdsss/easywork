@@ -3,6 +3,7 @@ package com.xiaobai.workorder.modules.workorder.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xiaobai.workorder.common.exception.BusinessException;
+import com.xiaobai.workorder.modules.audit.aspect.Auditable;
 import com.xiaobai.workorder.modules.mesintegration.event.WorkOrderStatusChangedEvent;
 import com.xiaobai.workorder.modules.operation.entity.Operation;
 import com.xiaobai.workorder.modules.operation.entity.OperationAssignment;
@@ -16,6 +17,7 @@ import com.xiaobai.workorder.modules.workorder.dto.UpdateWorkOrderRequest;
 import com.xiaobai.workorder.modules.workorder.dto.WorkOrderDTO;
 import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
 import com.xiaobai.workorder.modules.workorder.repository.WorkOrderMapper;
+import com.xiaobai.workorder.modules.workorder.statemachine.WorkOrderStateMachine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -38,6 +40,7 @@ public class WorkOrderService {
     private final OperationMapper operationMapper;
     private final OperationAssignmentMapper assignmentMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final WorkOrderStateMachine stateMachine;
 
     @Transactional
     public WorkOrderDTO createWorkOrder(CreateWorkOrderRequest request, Long createdBy) {
@@ -180,6 +183,7 @@ public class WorkOrderService {
                 .toList();
     }
 
+    @Auditable(operation = "COMPLETE_WORKORDER", targetType = "WORK_ORDER")
     @Transactional
     public void completeWorkOrder(Long id) {
         WorkOrder workOrder = workOrderMapper.selectById(id);
@@ -188,6 +192,9 @@ public class WorkOrderService {
         }
         WorkOrderType orderType = workOrder.getOrderType();
         WorkOrderStatus currentStatus = workOrder.getStatus();
+        if (!stateMachine.canTransition(currentStatus, WorkOrderStatus.COMPLETED, orderType)) {
+            throw new IllegalStateException("Cannot complete work order in status: " + currentStatus);
+        }
         // PRODUCTION orders require quality inspection before completion
         if (WorkOrderType.PRODUCTION == orderType) {
             if (WorkOrderStatus.INSPECT_PASSED != currentStatus) {
@@ -208,11 +215,15 @@ public class WorkOrderService {
         log.info("Work order {} completed (type={})", id, orderType);
     }
 
+    @Auditable(operation = "REOPEN_WORKORDER", targetType = "WORK_ORDER")
     @Transactional
     public void reopenWorkOrder(Long id) {
         WorkOrder workOrder = workOrderMapper.selectById(id);
         if (workOrder == null || workOrder.getDeleted() == 1) {
             throw new BusinessException("Work order not found: " + id);
+        }
+        if (!stateMachine.canTransition(workOrder.getStatus(), WorkOrderStatus.REPORTED, workOrder.getOrderType())) {
+            throw new IllegalStateException("Cannot reopen work order in status: " + workOrder.getStatus());
         }
         if (WorkOrderStatus.INSPECT_FAILED != workOrder.getStatus()) {
             throw new BusinessException(

@@ -13,11 +13,13 @@ import com.xiaobai.workorder.modules.workorder.dto.CreateWorkOrderRequest;
 import com.xiaobai.workorder.modules.workorder.dto.WorkOrderDTO;
 import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
 import com.xiaobai.workorder.modules.workorder.repository.WorkOrderMapper;
+import com.xiaobai.workorder.modules.workorder.statemachine.WorkOrderStateMachine;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -38,6 +40,7 @@ class WorkOrderServiceTest {
     @Mock OperationMapper operationMapper;
     @Mock OperationAssignmentMapper assignmentMapper;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Spy WorkOrderStateMachine stateMachine;
 
     @InjectMocks WorkOrderService workOrderService;
 
@@ -241,13 +244,13 @@ class WorkOrderServiceTest {
     }
 
     @Test
-    void completeWorkOrder_wrongStatus_throwsBusinessException() {
+    void completeWorkOrder_wrongStatus_throwsIllegalStateException() {
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.REPORTED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         assertThatThrownBy(() -> workOrderService.completeWorkOrder(1L))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("INSPECT_PASSED");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot complete work order in status: REPORTED");
     }
 
     @Test
@@ -273,13 +276,13 @@ class WorkOrderServiceTest {
     }
 
     @Test
-    void reopenWorkOrder_wrongStatus_throwsBusinessException() {
+    void reopenWorkOrder_wrongStatus_throwsIllegalStateException() {
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.INSPECT_PASSED);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         assertThatThrownBy(() -> workOrderService.reopenWorkOrder(1L))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("INSPECT_FAILED");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot reopen work order in status: INSPECT_PASSED");
     }
 
     // ---------------------------------------------------------------

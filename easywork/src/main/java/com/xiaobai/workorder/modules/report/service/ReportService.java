@@ -137,8 +137,9 @@ public class ReportService {
         }
         operationMapper.updateById(operation);
 
-        // Update work order based on order type
-        updateWorkOrderOnReport(operation.getWorkOrderId());
+        // Atomically increment work order completed quantity and then check status transition
+        workOrderMapper.addCompletedQuantity(orderForTypeCheck.getId(), toReport);
+        updateWorkOrderStatusOnReport(orderForTypeCheck.getId());
 
         log.info("Operation {} reported {} units by user {}", request.getOperationId(), toReport, userId);
         return record;
@@ -169,8 +170,9 @@ public class ReportService {
         }
         operationMapper.updateById(operation);
 
-        // Recalculate work order
-        updateWorkOrderOnReport(operation.getWorkOrderId());
+        // Atomically decrement work order completed quantity and then check status transition
+        workOrderMapper.addCompletedQuantity(operation.getWorkOrderId(), latest.getReportedQuantity().negate());
+        updateWorkOrderStatusOnReport(operation.getWorkOrderId());
 
         log.info("Report undone for operation {} by user {}", request.getOperationId(), userId);
     }
@@ -232,7 +234,7 @@ public class ReportService {
         }
     }
 
-    private void updateWorkOrderOnReport(Long workOrderId) {
+    private void updateWorkOrderStatusOnReport(Long workOrderId) {
         WorkOrder workOrder = workOrderMapper.selectById(workOrderId);
         if (workOrder == null) return;
 
@@ -243,12 +245,6 @@ public class ReportService {
                         || "TRANSPORTED".equals(op.getStatus())
                         || "HANDLED".equals(op.getStatus()));
 
-        BigDecimal totalCompleted = operations.stream()
-                .map(Operation::getCompletedQuantity)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        workOrder.setCompletedQuantity(totalCompleted);
-
         if (allReported) {
             WorkOrderStatus previousStatus = workOrder.getStatus();
             WorkOrderStatus newStatus = getEffectiveCompletedStatus(workOrder);
@@ -257,8 +253,6 @@ public class ReportService {
 
             eventPublisher.publishEvent(new WorkOrderStatusChangedEvent(
                     this, workOrderId, previousStatus.name(), newStatus.name(), null));
-        } else {
-            workOrderMapper.updateById(workOrder);
         }
     }
 

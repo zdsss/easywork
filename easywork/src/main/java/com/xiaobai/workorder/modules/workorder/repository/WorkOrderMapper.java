@@ -5,7 +5,9 @@ import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +32,9 @@ public interface WorkOrderMapper extends BaseMapper<WorkOrder> {
         GROUP BY order_type, status
         """)
     List<Map<String, Object>> countByTypeAndStatus();
+
+    @Update("UPDATE work_orders SET completed_quantity = completed_quantity + #{delta} WHERE id = #{workOrderId} AND deleted = 0")
+    void addCompletedQuantity(@Param("workOrderId") Long workOrderId, @Param("delta") BigDecimal delta);
 
     @Select("""
         SELECT DISTINCT wo.* FROM work_orders wo
