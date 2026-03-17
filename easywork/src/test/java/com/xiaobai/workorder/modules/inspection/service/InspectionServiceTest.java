@@ -1,6 +1,7 @@
 package com.xiaobai.workorder.modules.inspection.service;
 
 import com.xiaobai.workorder.common.enums.WorkOrderStatus;
+import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.modules.inspection.dto.InspectionRequest;
 import com.xiaobai.workorder.modules.inspection.entity.InspectionRecord;
@@ -9,10 +10,12 @@ import com.xiaobai.workorder.modules.mesintegration.event.InspectionRecordSavedE
 import com.xiaobai.workorder.modules.mesintegration.event.WorkOrderStatusChangedEvent;
 import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
 import com.xiaobai.workorder.modules.workorder.repository.WorkOrderMapper;
+import com.xiaobai.workorder.modules.workorder.statemachine.WorkOrderStateMachine;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -29,6 +32,7 @@ class InspectionServiceTest {
     @Mock InspectionRecordMapper inspectionRecordMapper;
     @Mock WorkOrderMapper workOrderMapper;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Spy WorkOrderStateMachine stateMachine;
 
     @InjectMocks InspectionService inspectionService;
 
@@ -134,6 +138,7 @@ class InspectionServiceTest {
         WorkOrder wo = new WorkOrder();
         wo.setId(id);
         wo.setStatus(status);
+        wo.setOrderType(WorkOrderType.PRODUCTION);
         wo.setDeleted(0);
         return wo;
     }
