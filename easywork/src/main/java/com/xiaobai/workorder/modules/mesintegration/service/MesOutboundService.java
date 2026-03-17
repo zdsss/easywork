@@ -22,6 +22,7 @@ import com.xiaobai.workorder.modules.workorder.repository.WorkOrderMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -44,6 +45,9 @@ public class MesOutboundService {
     private final ReportRecordMapper reportRecordMapper;
     private final UserMapper userMapper;
     private final ObjectProvider<MesApiClient> mesApiClientProvider;
+
+    @Value("${app.mes.integration.max-retries:5}")
+    private int maxRetries;
 
     private static final DateTimeFormatter DT_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -89,7 +93,7 @@ public class MesOutboundService {
 
         String businessKey = "REPORT-" + reportRecordId;
         MesSyncLog logEntry = syncLogService.createPending(
-                MesSyncType.REPORT_PUSH, MesSyncDirection.OUTBOUND, businessKey, payload);
+                MesSyncType.REPORT_PUSH, MesSyncDirection.OUTBOUND, businessKey, payload, maxRetries);
 
         try {
             String response = client.pushReport(payload);
@@ -129,7 +133,7 @@ public class MesOutboundService {
 
         String businessKey = workOrder.getOrderNumber() + "-STATUS-" + currentStatus;
         MesSyncLog logEntry = syncLogService.createPending(
-                MesSyncType.STATUS_PUSH, MesSyncDirection.OUTBOUND, businessKey, payload);
+                MesSyncType.STATUS_PUSH, MesSyncDirection.OUTBOUND, businessKey, payload, maxRetries);
 
         try {
             String response = client.pushStatus(payload);
@@ -175,7 +179,7 @@ public class MesOutboundService {
 
         String businessKey = "INSPECTION-" + inspectionRecordId;
         MesSyncLog logEntry = syncLogService.createPending(
-                MesSyncType.INSPECTION_PUSH, MesSyncDirection.OUTBOUND, businessKey, payload);
+                MesSyncType.INSPECTION_PUSH, MesSyncDirection.OUTBOUND, businessKey, payload, maxRetries);
 
         try {
             String response = client.pushInspection(payload);

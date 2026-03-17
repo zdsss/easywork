@@ -30,6 +30,12 @@ public class MesSyncLogService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public MesSyncLog createPending(String syncType, String direction,
                                      String businessKey, Object payload) {
+        return createPending(syncType, direction, businessKey, payload, 5);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public MesSyncLog createPending(String syncType, String direction,
+                                     String businessKey, Object payload, int maxRetries) {
         MesSyncLog logEntry = new MesSyncLog();
         logEntry.setSyncType(syncType);
         logEntry.setDirection(direction);
@@ -41,7 +47,7 @@ public class MesSyncLogService {
         logEntry.setPayload(toJson(payload));
         logEntry.setStatus(MesSyncStatus.PENDING);
         logEntry.setRetryCount(0);
-        logEntry.setMaxRetries(3);
+        logEntry.setMaxRetries(maxRetries);
         syncLogMapper.insert(logEntry);
         return logEntry;
     }
@@ -61,8 +67,20 @@ public class MesSyncLogService {
         MesSyncLog logEntry = syncLogMapper.selectById(logId);
         if (logEntry == null) return;
         logEntry.setRetryCount(logEntry.getRetryCount() + 1);
-        boolean exhausted = logEntry.getRetryCount() >= logEntry.getMaxRetries();
-        logEntry.setStatus(exhausted ? MesSyncStatus.FAILED : MesSyncStatus.RETRYING);
+        logEntry.setStatus(MesSyncStatus.RETRYING);
+        logEntry.setErrorMessage(errorMessage);
+        syncLogMapper.updateById(logEntry);
+    }
+
+    /**
+     * Permanently marks a sync log as failed after all retry attempts are exhausted.
+     * Sets status to FAILED (terminal) and records the final error message.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markExhausted(Long logId, String errorMessage) {
+        MesSyncLog logEntry = syncLogMapper.selectById(logId);
+        if (logEntry == null) return;
+        logEntry.setStatus(MesSyncStatus.FAILED);
         logEntry.setErrorMessage(errorMessage);
         syncLogMapper.updateById(logEntry);
     }

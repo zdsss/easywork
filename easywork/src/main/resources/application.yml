@@ -106,4 +106,7 @@ app:
       api-key: ""
       connect-timeout-ms: 5000
       read-timeout-ms: 10000
-      retry-delay-ms: 300000
+      retry-delay-ms: 300000   # max delay between retries (ms)
+      max-retries: 5            # maximum number of retry attempts before permanent failure
+      initial-delay-ms: 5000   # initial backoff delay (ms) for the first retry
+      backoff-multiplier: 2.0  # exponential multiplier applied per attempt
