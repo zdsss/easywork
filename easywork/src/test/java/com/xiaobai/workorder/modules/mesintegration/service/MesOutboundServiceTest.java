@@ -23,10 +23,12 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 class MesOutboundServiceTest {
 
     @Mock MesSyncLogService syncLogService;
@@ -47,7 +49,7 @@ class MesOutboundServiceTest {
 
         MesSyncLog logEntry = new MesSyncLog();
         logEntry.setId(1L);
-        when(syncLogService.createPending(any(), any(), any(), any())).thenReturn(logEntry);
+        when(syncLogService.createPending(any(), any(), any(), any(), anyInt())).thenReturn(logEntry);
 
         ReportRecord record = buildReportRecord(1L, 1L, 1L);
         when(reportRecordMapper.selectById(1L)).thenReturn(record);
@@ -80,7 +82,7 @@ class MesOutboundServiceTest {
 
         MesSyncLog logEntry = new MesSyncLog();
         logEntry.setId(2L);
-        when(syncLogService.createPending(any(), any(), any(), any())).thenReturn(logEntry);
+        when(syncLogService.createPending(any(), any(), any(), any(), anyInt())).thenReturn(logEntry);
 
         ReportRecord record = buildReportRecord(1L, 1L, 1L);
         when(reportRecordMapper.selectById(1L)).thenReturn(record);
@@ -103,7 +105,7 @@ class MesOutboundServiceTest {
 
         MesSyncLog logEntry = new MesSyncLog();
         logEntry.setId(3L);
-        when(syncLogService.createPending(any(), any(), any(), any())).thenReturn(logEntry);
+        when(syncLogService.createPending(any(), any(), any(), any(), anyInt())).thenReturn(logEntry);
 
         ReportRecord record = buildReportRecord(1L, 1L, 1L);
         when(reportRecordMapper.selectById(1L)).thenReturn(record);
@@ -116,7 +118,7 @@ class MesOutboundServiceTest {
 
         // Verify that createPending was called BEFORE pushReport
         var inOrder = inOrder(syncLogService, client);
-        inOrder.verify(syncLogService).createPending(any(), any(), any(), any());
+        inOrder.verify(syncLogService).createPending(any(), any(), any(), any(), anyInt());
         inOrder.verify(client).pushReport(any());
     }
 

@@ -1,6 +1,7 @@
 package com.xiaobai.workorder.modules.report.service;
 
 import com.xiaobai.workorder.common.enums.DependencyType;
+import com.xiaobai.workorder.common.enums.OperationStatus;
 import com.xiaobai.workorder.common.enums.WorkOrderStatus;
 import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.common.exception.BusinessException;
@@ -48,20 +49,20 @@ class WorkStartServiceTest {
 
     @Test
     void startWork_notStartedOperation_setsStatusToStarted() {
-        Operation op = buildOperation(1L, 1L, "NOT_STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.NOT_STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
         when(operationMapper.selectById(1L)).thenReturn(op);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         workStartService.startWork(1L, 10L);
 
-        assertThat(op.getStatus()).isEqualTo("STARTED");
+        assertThat(op.getStatus()).isEqualTo(OperationStatus.STARTED);
         verify(operationMapper).updateById((Operation) any(Operation.class));
     }
 
     @Test
     void startWork_firstOperation_updatesWorkOrderToStarted() {
-        Operation op = buildOperation(1L, 1L, "NOT_STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.NOT_STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
         when(operationMapper.selectById(1L)).thenReturn(op);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
@@ -79,7 +80,7 @@ class WorkStartServiceTest {
 
     @Test
     void startWork_alreadyStartedOperation_throwsBusinessException() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         when(operationMapper.selectById(1L)).thenReturn(op);
 
         assertThatThrownBy(() -> workStartService.startWork(1L, 10L))
@@ -89,7 +90,7 @@ class WorkStartServiceTest {
 
     @Test
     void startWork_noDependencies_startsNormally() {
-        Operation op = buildOperation(1L, 1L, "NOT_STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.NOT_STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
         when(operationMapper.selectById(1L)).thenReturn(op);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
@@ -97,13 +98,13 @@ class WorkStartServiceTest {
 
         workStartService.startWork(1L, 10L);
 
-        assertThat(op.getStatus()).isEqualTo("STARTED");
+        assertThat(op.getStatus()).isEqualTo(OperationStatus.STARTED);
     }
 
     @Test
     void startWork_predecessorNotComplete_throwsException() {
-        Operation op = buildOperation(2L, 1L, "NOT_STARTED", BigDecimal.TEN);
-        Operation predecessor = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN); // not complete
+        Operation op = buildOperation(2L, 1L, OperationStatus.NOT_STARTED, BigDecimal.TEN);
+        Operation predecessor = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN); // not complete
 
         OperationDependency dep = new OperationDependency();
         dep.setOperationId(2L);
@@ -122,7 +123,7 @@ class WorkStartServiceTest {
 
     @Test
     void startWork_parallelDependency_notBlocked() {
-        Operation op = buildOperation(2L, 1L, "NOT_STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(2L, 1L, OperationStatus.NOT_STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
 
         OperationDependency dep = new OperationDependency();
@@ -138,7 +139,7 @@ class WorkStartServiceTest {
         // Should NOT throw: PARALLEL dependency doesn't block start
         workStartService.startWork(2L, 10L);
 
-        assertThat(op.getStatus()).isEqualTo("STARTED");
+        assertThat(op.getStatus()).isEqualTo(OperationStatus.STARTED);
     }
 
     @Test
@@ -152,7 +153,7 @@ class WorkStartServiceTest {
 
     @Test
     void startWork_workOrderAlreadyStarted_doesNotUpdateWorkOrder() {
-        Operation op = buildOperation(1L, 1L, "NOT_STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.NOT_STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.STARTED); // already started
         when(operationMapper.selectById(1L)).thenReturn(op);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);

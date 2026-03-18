@@ -7,6 +7,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Base class for integration tests that require a real PostgreSQL database.
@@ -19,6 +20,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest
 @Testcontainers
 @ActiveProfiles("integration-test")
+@Tag("integration")
 public abstract class PostgresIntegrationTestBase {
 
     @Container

@@ -1,5 +1,6 @@
 package com.xiaobai.workorder.modules.report.service;
 
+import com.xiaobai.workorder.common.enums.OperationStatus;
 import com.xiaobai.workorder.common.enums.WorkOrderStatus;
 import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.common.exception.BusinessException;
@@ -49,7 +50,7 @@ class ReportServiceTest {
 
     @Test
     void reportWork_normalReport_insertsRecordAndUpdatesOperation() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.STARTED);
         when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
         when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.ZERO);
@@ -69,7 +70,7 @@ class ReportServiceTest {
 
     @Test
     void reportWork_nullQuantity_usesRemainingQuantity() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.STARTED);
         when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
         when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(new BigDecimal("3"));
@@ -88,7 +89,7 @@ class ReportServiceTest {
 
     @Test
     void reportWork_exceedsRemaining_throwsBusinessException() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
         when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(new BigDecimal("8"));
 
@@ -103,7 +104,7 @@ class ReportServiceTest {
 
     @Test
     void reportWork_zeroQuantity_throwsBusinessException() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
         when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.TEN);
 
@@ -118,7 +119,7 @@ class ReportServiceTest {
 
     @Test
     void reportWork_completesOperation_setsStatusToReported() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.STARTED);
         wo.setOrderType(WorkOrderType.PRODUCTION);
         when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
@@ -126,7 +127,7 @@ class ReportServiceTest {
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
         // After report, simulate all operations reported
-        Operation reportedOp = buildOperation(1L, 1L, "REPORTED", BigDecimal.TEN);
+        Operation reportedOp = buildOperation(1L, 1L, OperationStatus.REPORTED, BigDecimal.TEN);
         reportedOp.setCompletedQuantity(BigDecimal.TEN);
         when(operationMapper.findByWorkOrderId(1L)).thenReturn(List.of(reportedOp));
 
@@ -137,19 +138,19 @@ class ReportServiceTest {
         reportService.reportWork(req, 10L, null);
 
         // op was modified in-place: completed = 5+5=10 = planned, so REPORTED
-        assertThat(op.getStatus()).isEqualTo("REPORTED");
+        assertThat(op.getStatus()).isEqualTo(OperationStatus.REPORTED);
     }
 
     @Test
     void reportWork_allOperationsReported_updatesWorkOrderToReported() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.STARTED);
         wo.setOrderType(WorkOrderType.PRODUCTION);
         when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
         when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.ZERO);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
-        Operation reportedOp = buildOperation(1L, 1L, "REPORTED", BigDecimal.TEN);
+        Operation reportedOp = buildOperation(1L, 1L, OperationStatus.REPORTED, BigDecimal.TEN);
         reportedOp.setCompletedQuantity(BigDecimal.TEN);
         when(operationMapper.findByWorkOrderId(1L)).thenReturn(List.of(reportedOp));
 
@@ -164,7 +165,7 @@ class ReportServiceTest {
 
     @Test
     void reportWork_publishesReportRecordSavedEvent() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.STARTED);
         when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
         when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.ZERO);
@@ -186,7 +187,7 @@ class ReportServiceTest {
 
     @Test
     void undoReport_validRecord_marksAsUndone() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         ReportRecord record = new ReportRecord();
         record.setId(100L);
         record.setReportedQuantity(new BigDecimal("5"));
@@ -211,7 +212,7 @@ class ReportServiceTest {
 
     @Test
     void undoReport_zeroRemaining_setsOperationToNotStarted() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         ReportRecord record = new ReportRecord();
         record.setId(100L);
         record.setReportedQuantity(new BigDecimal("5"));
@@ -230,12 +231,12 @@ class ReportServiceTest {
         reportService.undoReport(req, 10L);
 
         // After sum = 0, operation should revert to NOT_STARTED
-        assertThat(op.getStatus()).isEqualTo("NOT_STARTED");
+        assertThat(op.getStatus()).isEqualTo(OperationStatus.NOT_STARTED);
     }
 
     @Test
     void undoReport_noRecord_throwsBusinessException() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         when(operationMapper.selectById(1L)).thenReturn(op);
         when(reportRecordMapper.findLatestByOperationIdAndUser(1L, 10L)).thenReturn(Optional.empty());
 
@@ -265,14 +266,14 @@ class ReportServiceTest {
 
     @Test
     void testReportWork_InspectionOrder_DirectlyCompletes() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.STARTED);
         wo.setOrderType(WorkOrderType.INSPECTION);
         when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
         when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.ZERO);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
-        Operation reportedOp = buildOperation(1L, 1L, "REPORTED", BigDecimal.TEN);
+        Operation reportedOp = buildOperation(1L, 1L, OperationStatus.REPORTED, BigDecimal.TEN);
         reportedOp.setCompletedQuantity(BigDecimal.TEN);
         when(operationMapper.findByWorkOrderId(1L)).thenReturn(List.of(reportedOp));
 
@@ -288,14 +289,14 @@ class ReportServiceTest {
 
     @Test
     void testReportWork_TransportOrder_DirectlyCompletes() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.STARTED);
         wo.setOrderType(WorkOrderType.TRANSPORT);
         when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
         when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.ZERO);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
-        Operation reportedOp = buildOperation(1L, 1L, "REPORTED", BigDecimal.TEN);
+        Operation reportedOp = buildOperation(1L, 1L, OperationStatus.REPORTED, BigDecimal.TEN);
         reportedOp.setCompletedQuantity(BigDecimal.TEN);
         when(operationMapper.findByWorkOrderId(1L)).thenReturn(List.of(reportedOp));
 
@@ -310,14 +311,14 @@ class ReportServiceTest {
 
     @Test
     void testReportWork_ProductionOrder_GoesToReported() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.STARTED);
         wo.setOrderType(WorkOrderType.PRODUCTION);
         when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
         when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.ZERO);
         when(workOrderMapper.selectById(1L)).thenReturn(wo);
 
-        Operation reportedOp = buildOperation(1L, 1L, "REPORTED", BigDecimal.TEN);
+        Operation reportedOp = buildOperation(1L, 1L, OperationStatus.REPORTED, BigDecimal.TEN);
         reportedOp.setCompletedQuantity(BigDecimal.TEN);
         when(operationMapper.findByWorkOrderId(1L)).thenReturn(List.of(reportedOp));
 
@@ -334,7 +335,7 @@ class ReportServiceTest {
     @Test
     void testReportWork_ForceStartDisabled_AllowsNotStarted() {
         // forceStartBeforeReport defaults to false via WorkOrderProperties mock
-        Operation op = buildOperation(1L, 1L, "NOT_STARTED", BigDecimal.TEN);
+        Operation op = buildOperation(1L, 1L, OperationStatus.NOT_STARTED, BigDecimal.TEN);
         WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
         when(operationMapper.selectByIdForUpdate(1L)).thenReturn(op);
         when(reportRecordMapper.sumReportedQuantityByOperationId(1L)).thenReturn(BigDecimal.ZERO);
@@ -353,7 +354,7 @@ class ReportServiceTest {
     // Helpers
     // ---------------------------------------------------------------
 
-    private Operation buildOperation(Long id, Long workOrderId, String status, BigDecimal plannedQty) {
+    private Operation buildOperation(Long id, Long workOrderId, OperationStatus status, BigDecimal plannedQty) {
         Operation op = new Operation();
         op.setId(id);
         op.setWorkOrderId(workOrderId);

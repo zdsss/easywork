@@ -15,6 +15,7 @@ import com.xiaobai.workorder.modules.device.service.ScanService;
 import com.xiaobai.workorder.modules.inspection.dto.InspectionRequest;
 import com.xiaobai.workorder.modules.inspection.entity.InspectionRecord;
 import com.xiaobai.workorder.modules.inspection.service.InspectionService;
+import com.xiaobai.workorder.common.enums.OperationStatus;
 import com.xiaobai.workorder.modules.operation.entity.Operation;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
 import com.xiaobai.workorder.modules.operation.service.ReworkService;
@@ -242,7 +243,7 @@ class DeviceControllerTest {
     void testScanStart_WorkOrderBarcode_MatchesEarliestOperation() throws Exception {
         WorkOrderDTO dto = buildWorkOrderDTO(1L);
         dto.setOperations(List.of());
-        Operation op = buildOperation(5L, 1L, "NOT_STARTED");
+        Operation op = buildOperation(5L, 1L, OperationStatus.NOT_STARTED);
         ScanService.ScanStartResult result = new ScanService.ScanStartResult(1L, op);
         when(scanService.resolveScanStart("WO-001", 10L)).thenReturn(result);
         when(workOrderService.getWorkOrderById(1L)).thenReturn(dto);
@@ -260,7 +261,7 @@ class DeviceControllerTest {
     void testScanStart_WorkOrderBarcode_MultipleOperations_PicksEarliest() throws Exception {
         WorkOrderDTO dto = buildWorkOrderDTO(1L);
         dto.setOperations(List.of());
-        Operation earliest = buildOperation(3L, 1L, "NOT_STARTED");
+        Operation earliest = buildOperation(3L, 1L, OperationStatus.NOT_STARTED);
         ScanService.ScanStartResult result = new ScanService.ScanStartResult(1L, earliest);
         when(scanService.resolveScanStart("WO-002", 10L)).thenReturn(result);
         when(workOrderService.getWorkOrderById(1L)).thenReturn(dto);
@@ -329,7 +330,7 @@ class DeviceControllerTest {
         return dto;
     }
 
-    private Operation buildOperation(Long id, Long workOrderId, String status) {
+    private Operation buildOperation(Long id, Long workOrderId, OperationStatus status) {
         Operation op = new Operation();
         op.setId(id);
         op.setWorkOrderId(workOrderId);
