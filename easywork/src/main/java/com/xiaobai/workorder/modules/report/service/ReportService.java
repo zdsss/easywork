@@ -2,7 +2,6 @@ package com.xiaobai.workorder.modules.report.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.exceptions.MybatisPlusException;
-import com.xiaobai.workorder.common.enums.DependencyType;
 import com.xiaobai.workorder.common.enums.WorkOrderStatus;
 import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.common.exception.BusinessException;
@@ -10,8 +9,6 @@ import com.xiaobai.workorder.modules.audit.aspect.Auditable;
 import com.xiaobai.workorder.modules.mesintegration.event.ReportRecordSavedEvent;
 import com.xiaobai.workorder.modules.mesintegration.event.WorkOrderStatusChangedEvent;
 import com.xiaobai.workorder.modules.operation.entity.Operation;
-import com.xiaobai.workorder.modules.operation.entity.OperationDependency;
-import com.xiaobai.workorder.modules.operation.repository.OperationDependencyMapper;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
 import com.xiaobai.workorder.modules.report.dto.ReportRequest;
 import com.xiaobai.workorder.modules.report.dto.UndoReportRequest;
@@ -19,6 +16,7 @@ import com.xiaobai.workorder.modules.report.entity.ReportRecord;
 import com.xiaobai.workorder.modules.report.repository.ReportRecordMapper;
 import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
 import com.xiaobai.workorder.modules.workorder.repository.WorkOrderMapper;
+import com.xiaobai.workorder.modules.workorder.statemachine.WorkOrderStateMachine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.xiaobai.workorder.config.WorkOrderProperties;
@@ -39,33 +37,8 @@ public class ReportService {
     private final OperationMapper operationMapper;
     private final WorkOrderMapper workOrderMapper;
     private final ApplicationEventPublisher eventPublisher;
-    private final OperationDependencyMapper operationDependencyMapper;
     private final WorkOrderProperties workOrderProperties;
-
-    @Transactional
-    @Auditable(operation = "START_WORK", targetType = "OPERATION")
-    public ReportRecord startWork(Long operationId, Long userId) {
-        Operation operation = getOperationOrThrow(operationId);
-
-        if (!"NOT_STARTED".equals(operation.getStatus())) {
-            throw new BusinessException("Operation cannot be started, current status: " + operation.getStatus());
-        }
-
-        // Check SERIAL predecessor completion before allowing start
-        checkPredecessors(operation);
-
-        operation.setStatus("STARTED");
-        try {
-            operationMapper.updateById(operation);
-        } catch (MybatisPlusException e) {
-            throw new BusinessException("Operation was modified by another user, please retry");
-        }
-
-        updateWorkOrderStatusOnStart(operation.getWorkOrderId());
-
-        log.info("Operation {} started by user {}", operationId, userId);
-        return null;
-    }
+    private final WorkOrderStateMachine stateMachine;
 
     @Transactional
     @Auditable(operation = "REPORT_WORK", targetType = "OPERATION")
@@ -137,8 +110,12 @@ public class ReportService {
         }
         operationMapper.updateById(operation);
 
-        // Update work order based on order type
-        updateWorkOrderOnReport(operation.getWorkOrderId());
+        // Atomically increment work order completed quantity and then check status transition
+        int updated = workOrderMapper.addCompletedQuantity(orderForTypeCheck.getId(), toReport);
+        if (updated == 0) {
+            log.warn("addCompletedQuantity affected 0 rows for workOrder id={}", orderForTypeCheck.getId());
+        }
+        updateWorkOrderStatusOnReport(orderForTypeCheck.getId());
 
         log.info("Operation {} reported {} units by user {}", request.getOperationId(), toReport, userId);
         return record;
@@ -169,8 +146,12 @@ public class ReportService {
         }
         operationMapper.updateById(operation);
 
-        // Recalculate work order
-        updateWorkOrderOnReport(operation.getWorkOrderId());
+        // Atomically decrement work order completed quantity and then check status transition
+        int updated = workOrderMapper.addCompletedQuantity(operation.getWorkOrderId(), latest.getReportedQuantity().negate());
+        if (updated == 0) {
+            log.warn("addCompletedQuantity affected 0 rows for workOrder id={}", operation.getWorkOrderId());
+        }
+        updateWorkOrderStatusOnReport(operation.getWorkOrderId());
 
         log.info("Report undone for operation {} by user {}", request.getOperationId(), userId);
     }
@@ -191,48 +172,7 @@ public class ReportService {
         return operation;
     }
 
-    /**
-     * Check that all SERIAL predecessors of this operation are in REPORTED or COMPLETED state.
-     * PARALLEL dependencies do not block start.
-     */
-    private void checkPredecessors(Operation operation) {
-        List<OperationDependency> deps = operationDependencyMapper.selectList(
-                new LambdaQueryWrapper<OperationDependency>()
-                        .eq(OperationDependency::getOperationId, operation.getId())
-                        .eq(OperationDependency::getDeleted, 0));
-
-        for (OperationDependency dep : deps) {
-            if (DependencyType.SERIAL != dep.getDependencyType()) {
-                continue; // PARALLEL dependencies do not block start
-            }
-            Operation predecessor = operationMapper.selectById(dep.getPredecessorOperationId());
-            if (predecessor == null || predecessor.getDeleted() == 1) {
-                continue; // Predecessor deleted or not found, skip
-            }
-            String pStatus = predecessor.getStatus();
-            if (!"REPORTED".equals(pStatus) && !"COMPLETED".equals(pStatus)
-                    && !"INSPECTED".equals(pStatus) && !"TRANSPORTED".equals(pStatus)
-                    && !"HANDLED".equals(pStatus)) {
-                throw new BusinessException(
-                        "前置工序 [" + predecessor.getOperationName() + "] 尚未完成，无法开工");
-            }
-        }
-    }
-
-    private void updateWorkOrderStatusOnStart(Long workOrderId) {
-        WorkOrder workOrder = workOrderMapper.selectById(workOrderId);
-        if (workOrder != null && WorkOrderStatus.NOT_STARTED == workOrder.getStatus()) {
-            WorkOrderStatus previousStatus = workOrder.getStatus();
-            workOrder.setStatus(WorkOrderStatus.STARTED);
-            workOrder.setActualStartTime(LocalDateTime.now());
-            workOrderMapper.updateById(workOrder);
-
-            eventPublisher.publishEvent(new WorkOrderStatusChangedEvent(
-                    this, workOrderId, previousStatus.name(), WorkOrderStatus.STARTED.name(), null));
-        }
-    }
-
-    private void updateWorkOrderOnReport(Long workOrderId) {
+    private void updateWorkOrderStatusOnReport(Long workOrderId) {
         WorkOrder workOrder = workOrderMapper.selectById(workOrderId);
         if (workOrder == null) return;
 
@@ -243,22 +183,17 @@ public class ReportService {
                         || "TRANSPORTED".equals(op.getStatus())
                         || "HANDLED".equals(op.getStatus()));
 
-        BigDecimal totalCompleted = operations.stream()
-                .map(Operation::getCompletedQuantity)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        workOrder.setCompletedQuantity(totalCompleted);
-
         if (allReported) {
             WorkOrderStatus previousStatus = workOrder.getStatus();
             WorkOrderStatus newStatus = getEffectiveCompletedStatus(workOrder);
+            if (!stateMachine.canTransition(workOrder.getStatus(), newStatus, workOrder.getOrderType())) {
+                throw new IllegalStateException("Invalid status transition: " + workOrder.getStatus() + " → " + newStatus);
+            }
             workOrder.setStatus(newStatus);
             workOrderMapper.updateById(workOrder);
 
             eventPublisher.publishEvent(new WorkOrderStatusChangedEvent(
                     this, workOrderId, previousStatus.name(), newStatus.name(), null));
-        } else {
-            workOrderMapper.updateById(workOrder);
         }
     }
 

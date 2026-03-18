@@ -15,7 +15,7 @@ public interface MesSyncLogMapper extends BaseMapper<MesSyncLog> {
 
     default List<MesSyncLog> findPendingRetries(int maxRetries) {
         return selectList(new LambdaQueryWrapper<MesSyncLog>()
-                .in(MesSyncLog::getStatus, "FAILED", "RETRYING")
+                .eq(MesSyncLog::getStatus, "RETRYING")
                 .lt(MesSyncLog::getRetryCount, maxRetries)
                 .eq(MesSyncLog::getDeleted, 0)
                 .orderByAsc(MesSyncLog::getCreatedAt));

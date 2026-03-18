@@ -7,10 +7,12 @@ import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.modules.inspection.dto.InspectionRequest;
 import com.xiaobai.workorder.modules.inspection.entity.InspectionRecord;
 import com.xiaobai.workorder.modules.inspection.repository.InspectionRecordMapper;
+import com.xiaobai.workorder.modules.audit.aspect.Auditable;
 import com.xiaobai.workorder.modules.mesintegration.event.InspectionRecordSavedEvent;
 import com.xiaobai.workorder.modules.mesintegration.event.WorkOrderStatusChangedEvent;
 import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
 import com.xiaobai.workorder.modules.workorder.repository.WorkOrderMapper;
+import com.xiaobai.workorder.modules.workorder.statemachine.WorkOrderStateMachine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -27,7 +29,9 @@ public class InspectionService {
     private final InspectionRecordMapper inspectionRecordMapper;
     private final WorkOrderMapper workOrderMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final WorkOrderStateMachine stateMachine;
 
+    @Auditable(operation = "SUBMIT_INSPECTION", targetType = "INSPECTION_RECORD")
     @Transactional
     public InspectionRecord submitInspection(InspectionRequest request, Long inspectorId) {
         WorkOrder workOrder = workOrderMapper.selectById(request.getWorkOrderId());
@@ -62,23 +66,29 @@ public class InspectionService {
         eventPublisher.publishEvent(
                 new InspectionRecordSavedEvent(this, record.getId(), record));
 
-        // Update work order status based on result
+        // Determine the new status based on inspection result
         WorkOrderStatus previousStatus = workOrder.getStatus();
         String result = request.getInspectionResult();
+        WorkOrderStatus newStatus;
         if ("PASSED".equals(result)) {
-            workOrder.setStatus(WorkOrderStatus.INSPECT_PASSED);
+            newStatus = WorkOrderStatus.INSPECT_PASSED;
         } else if ("CONCESSION".equals(result)) {
             // 让步接收：不合格品经评审按标准放行，状态同 INSPECT_PASSED，
             // 但 inspection_result 字段保留 "CONCESSION" 供审计追溯
-            workOrder.setStatus(WorkOrderStatus.INSPECT_PASSED);
+            newStatus = WorkOrderStatus.INSPECT_PASSED;
         } else if ("REWORK".equals(result) || "FAILED".equals(result)) {
-            workOrder.setStatus(WorkOrderStatus.INSPECT_FAILED);
+            newStatus = WorkOrderStatus.INSPECT_FAILED;
         } else if ("SCRAP_MATERIAL".equals(result) || "SCRAP_PROCESS".equals(result)) {
-            workOrder.setStatus(WorkOrderStatus.SCRAPPED);
+            newStatus = WorkOrderStatus.SCRAPPED;
         } else {
             // Default: treat unknown results as failed
-            workOrder.setStatus(WorkOrderStatus.INSPECT_FAILED);
+            newStatus = WorkOrderStatus.INSPECT_FAILED;
         }
+
+        if (!stateMachine.canTransition(workOrder.getStatus(), newStatus, workOrder.getOrderType())) {
+            throw new IllegalStateException("Invalid status transition: " + workOrder.getStatus() + " → " + newStatus);
+        }
+        workOrder.setStatus(newStatus);
         workOrderMapper.updateById(workOrder);
 
         // Notify MES of the work order status transition

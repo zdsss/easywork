@@ -11,6 +11,7 @@ import com.xiaobai.workorder.modules.call.entity.CallRecord;
 import com.xiaobai.workorder.modules.call.service.CallService;
 import com.xiaobai.workorder.modules.device.service.DeviceService;
 import com.xiaobai.workorder.modules.device.service.IdempotencyService;
+import com.xiaobai.workorder.modules.device.service.ScanService;
 import com.xiaobai.workorder.modules.inspection.dto.InspectionRequest;
 import com.xiaobai.workorder.modules.inspection.entity.InspectionRecord;
 import com.xiaobai.workorder.modules.inspection.service.InspectionService;
@@ -21,6 +22,7 @@ import com.xiaobai.workorder.modules.report.dto.ReportRequest;
 import com.xiaobai.workorder.modules.report.dto.UndoReportRequest;
 import com.xiaobai.workorder.modules.report.entity.ReportRecord;
 import com.xiaobai.workorder.modules.report.service.ReportService;
+import com.xiaobai.workorder.modules.report.service.WorkStartService;
 import com.xiaobai.workorder.modules.user.service.UserDetailsServiceImpl;
 import com.xiaobai.workorder.modules.workorder.dto.WorkOrderDTO;
 import com.xiaobai.workorder.modules.workorder.service.WorkOrderService;
@@ -40,6 +42,7 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -57,6 +60,7 @@ class DeviceControllerTest {
     @MockBean AuthService authService;
     @MockBean WorkOrderService workOrderService;
     @MockBean ReportService reportService;
+    @MockBean WorkStartService workStartService;
     @MockBean CallService callService;
     @MockBean DeviceService deviceService;
     @MockBean InspectionService inspectionService;
@@ -66,6 +70,7 @@ class DeviceControllerTest {
     @MockBean SecurityUtils securityUtils;
     @MockBean JwtTokenProvider jwtTokenProvider;
     @MockBean UserDetailsServiceImpl userDetailsServiceImpl;
+    @MockBean ScanService scanService;
 
     @BeforeEach
     void setUp() {
@@ -101,7 +106,7 @@ class DeviceControllerTest {
 
     @Test
     void startWork_validOperationId_returns200() throws Exception {
-        when(reportService.startWork(anyLong(), anyLong())).thenReturn(null);
+        doNothing().when(workStartService).startWork(anyLong(), anyLong());
 
         mockMvc.perform(post("/api/device/start")
                         .with(user("worker").roles("WORKER"))
@@ -132,7 +137,8 @@ class DeviceControllerTest {
     void scanStart_validBarcode_returns200() throws Exception {
         WorkOrderDTO dto = buildWorkOrderDTO(1L);
         dto.setOperations(List.of());
-        when(workOrderService.getWorkOrderByBarcode(any(), anyLong())).thenReturn(dto);
+        ScanService.ScanStartResult result = new ScanService.ScanStartResult(1L, null);
+        when(scanService.resolveScanStart(anyString(), anyLong())).thenReturn(result);
         when(workOrderService.getWorkOrderById(1L)).thenReturn(dto);
 
         mockMvc.perform(post("/api/device/scan/start")
@@ -146,7 +152,8 @@ class DeviceControllerTest {
     void scanReport_validBarcode_returns200() throws Exception {
         WorkOrderDTO dto = buildWorkOrderDTO(1L);
         dto.setOperations(List.of());
-        when(workOrderService.getWorkOrderByBarcode(any(), anyLong())).thenReturn(dto);
+        ScanService.ScanReportResult result = new ScanService.ScanReportResult(1L, null);
+        when(scanService.resolveScanReport(anyString(), anyLong())).thenReturn(result);
         when(workOrderService.getWorkOrderById(1L)).thenReturn(dto);
 
         mockMvc.perform(post("/api/device/scan/report")
@@ -236,10 +243,8 @@ class DeviceControllerTest {
         WorkOrderDTO dto = buildWorkOrderDTO(1L);
         dto.setOperations(List.of());
         Operation op = buildOperation(5L, 1L, "NOT_STARTED");
-        when(operationMapper.findByOperationNumber("WO-001")).thenReturn(java.util.Optional.empty());
-        when(workOrderService.getWorkOrderByBarcode("WO-001", 10L)).thenReturn(dto);
-        // Uses the NOT_STARTED-specific query for scan-to-start
-        when(operationMapper.findEarliestNotStartedByUserAndWorkOrder(10L, 1L)).thenReturn(op);
+        ScanService.ScanStartResult result = new ScanService.ScanStartResult(1L, op);
+        when(scanService.resolveScanStart("WO-001", 10L)).thenReturn(result);
         when(workOrderService.getWorkOrderById(1L)).thenReturn(dto);
 
         mockMvc.perform(post("/api/device/scan/start")
@@ -248,7 +253,7 @@ class DeviceControllerTest {
                         .content(objectMapper.writeValueAsString(Map.of("barcode", "WO-001"))))
                 .andExpect(status().isOk());
 
-        verify(reportService).startWork(5L, 10L);
+        verify(workStartService).startWork(5L, 10L);
     }
 
     @Test
@@ -256,10 +261,8 @@ class DeviceControllerTest {
         WorkOrderDTO dto = buildWorkOrderDTO(1L);
         dto.setOperations(List.of());
         Operation earliest = buildOperation(3L, 1L, "NOT_STARTED");
-        when(operationMapper.findByOperationNumber("WO-002")).thenReturn(java.util.Optional.empty());
-        when(workOrderService.getWorkOrderByBarcode("WO-002", 10L)).thenReturn(dto);
-        // Uses NOT_STARTED-specific query: correctly skips STARTED ops to find earliest NOT_STARTED
-        when(operationMapper.findEarliestNotStartedByUserAndWorkOrder(10L, 1L)).thenReturn(earliest);
+        ScanService.ScanStartResult result = new ScanService.ScanStartResult(1L, earliest);
+        when(scanService.resolveScanStart("WO-002", 10L)).thenReturn(result);
         when(workOrderService.getWorkOrderById(1L)).thenReturn(dto);
 
         mockMvc.perform(post("/api/device/scan/start")
@@ -268,7 +271,7 @@ class DeviceControllerTest {
                         .content(objectMapper.writeValueAsString(Map.of("barcode", "WO-002"))))
                 .andExpect(status().isOk());
 
-        verify(reportService).startWork(3L, 10L);
+        verify(workStartService).startWork(3L, 10L);
     }
 
     @Test

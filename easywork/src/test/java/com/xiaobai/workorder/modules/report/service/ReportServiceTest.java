@@ -1,15 +1,11 @@
 package com.xiaobai.workorder.modules.report.service;
 
-import com.xiaobai.workorder.common.enums.DependencyType;
 import com.xiaobai.workorder.common.enums.WorkOrderStatus;
 import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.config.WorkOrderProperties;
 import com.xiaobai.workorder.modules.mesintegration.event.ReportRecordSavedEvent;
-import com.xiaobai.workorder.modules.mesintegration.event.WorkOrderStatusChangedEvent;
 import com.xiaobai.workorder.modules.operation.entity.Operation;
-import com.xiaobai.workorder.modules.operation.entity.OperationDependency;
-import com.xiaobai.workorder.modules.operation.repository.OperationDependencyMapper;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
 import com.xiaobai.workorder.modules.report.dto.ReportRequest;
 import com.xiaobai.workorder.modules.report.dto.UndoReportRequest;
@@ -17,11 +13,12 @@ import com.xiaobai.workorder.modules.report.entity.ReportRecord;
 import com.xiaobai.workorder.modules.report.repository.ReportRecordMapper;
 import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
 import com.xiaobai.workorder.modules.workorder.repository.WorkOrderMapper;
+import com.xiaobai.workorder.modules.workorder.statemachine.WorkOrderStateMachine;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -41,56 +38,10 @@ class ReportServiceTest {
     @Mock OperationMapper operationMapper;
     @Mock WorkOrderMapper workOrderMapper;
     @Mock ApplicationEventPublisher eventPublisher;
-    @Mock OperationDependencyMapper operationDependencyMapper;
     @Mock WorkOrderProperties workOrderProperties;
+    @Spy WorkOrderStateMachine stateMachine;
 
     @InjectMocks ReportService reportService;
-
-    // ---------------------------------------------------------------
-    // startWork tests
-    // ---------------------------------------------------------------
-
-    @Test
-    void startWork_notStartedOperation_setsStatusToStarted() {
-        Operation op = buildOperation(1L, 1L, "NOT_STARTED", BigDecimal.TEN);
-        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
-        when(operationMapper.selectById(1L)).thenReturn(op);
-        when(workOrderMapper.selectById(1L)).thenReturn(wo);
-
-        reportService.startWork(1L, 10L);
-
-        // Entity is modified in-place before updateById is called
-        assertThat(op.getStatus()).isEqualTo("STARTED");
-        verify(operationMapper).updateById((Operation) any(Operation.class));
-    }
-
-    @Test
-    void startWork_firstOperation_updatesWorkOrderToStarted() {
-        Operation op = buildOperation(1L, 1L, "NOT_STARTED", BigDecimal.TEN);
-        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
-        when(operationMapper.selectById(1L)).thenReturn(op);
-        when(workOrderMapper.selectById(1L)).thenReturn(wo);
-
-        reportService.startWork(1L, 10L);
-
-        assertThat(wo.getStatus()).isEqualTo(WorkOrderStatus.STARTED);
-        verify(workOrderMapper).updateById((WorkOrder) any(WorkOrder.class));
-
-        ArgumentCaptor<WorkOrderStatusChangedEvent> cap = ArgumentCaptor.forClass(WorkOrderStatusChangedEvent.class);
-        verify(eventPublisher).publishEvent(cap.capture());
-        assertThat(cap.getValue().getPreviousStatus()).isEqualTo("NOT_STARTED");
-        assertThat(cap.getValue().getCurrentStatus()).isEqualTo("STARTED");
-    }
-
-    @Test
-    void startWork_alreadyStartedOperation_throwsBusinessException() {
-        Operation op = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN);
-        when(operationMapper.selectById(1L)).thenReturn(op);
-
-        assertThatThrownBy(() -> reportService.startWork(1L, 10L))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("cannot be started");
-    }
 
     // ---------------------------------------------------------------
     // reportWork tests
@@ -396,60 +347,6 @@ class ReportServiceTest {
 
         // Should NOT throw: force-start is disabled so NOT_STARTED is allowed
         reportService.reportWork(req, 10L, null);
-    }
-
-    @Test
-    void testStartWork_NoDependencies_StartsNormally() {
-        Operation op = buildOperation(1L, 1L, "NOT_STARTED", BigDecimal.TEN);
-        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
-        when(operationMapper.selectById(1L)).thenReturn(op);
-        when(workOrderMapper.selectById(1L)).thenReturn(wo);
-        // No dependencies → empty list (Mockito default for selectList)
-
-        reportService.startWork(1L, 10L);
-
-        assertThat(op.getStatus()).isEqualTo("STARTED");
-    }
-
-    @Test
-    void testStartWork_PredecessorNotComplete_ThrowsException() {
-        Operation op = buildOperation(2L, 1L, "NOT_STARTED", BigDecimal.TEN);
-        Operation predecessor = buildOperation(1L, 1L, "STARTED", BigDecimal.TEN); // not complete
-
-        OperationDependency dep = new OperationDependency();
-        dep.setOperationId(2L);
-        dep.setPredecessorOperationId(1L);
-        dep.setDependencyType(DependencyType.SERIAL);
-        dep.setDeleted(0);
-
-        when(operationMapper.selectById(2L)).thenReturn(op);
-        when(operationDependencyMapper.selectList(any())).thenReturn(List.of(dep));
-        when(operationMapper.selectById(1L)).thenReturn(predecessor);
-
-        assertThatThrownBy(() -> reportService.startWork(2L, 10L))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("尚未完成");
-    }
-
-    @Test
-    void testStartWork_ParallelDependency_NotBlocked() {
-        Operation op = buildOperation(2L, 1L, "NOT_STARTED", BigDecimal.TEN);
-        WorkOrder wo = buildWorkOrder(1L, WorkOrderStatus.NOT_STARTED);
-
-        OperationDependency dep = new OperationDependency();
-        dep.setOperationId(2L);
-        dep.setPredecessorOperationId(1L);
-        dep.setDependencyType(DependencyType.PARALLEL); // PARALLEL does not block
-        dep.setDeleted(0);
-
-        when(operationMapper.selectById(2L)).thenReturn(op);
-        when(operationDependencyMapper.selectList(any())).thenReturn(List.of(dep));
-        when(workOrderMapper.selectById(1L)).thenReturn(wo);
-
-        // Should NOT throw: PARALLEL dependency doesn't block start
-        reportService.startWork(2L, 10L);
-
-        assertThat(op.getStatus()).isEqualTo("STARTED");
     }
 
     // ---------------------------------------------------------------

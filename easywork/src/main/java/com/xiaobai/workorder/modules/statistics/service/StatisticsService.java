@@ -7,6 +7,7 @@ import com.xiaobai.workorder.modules.report.repository.ReportRecordMapper;
 import com.xiaobai.workorder.modules.user.entity.User;
 import com.xiaobai.workorder.modules.user.repository.UserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -27,6 +28,7 @@ public class StatisticsService {
     private final UserMapper userMapper;
     private final InspectionRecordMapper inspectionRecordMapper;
 
+    @Cacheable("dashboardStats")
     public StatisticsDTO getDashboardStats() {
         // SQL aggregation: one query for counts by status (no full table load)
         List<Map<String, Object>> statusCounts = workOrderMapper.countByStatus();
