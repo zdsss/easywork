@@ -11,9 +11,9 @@ import com.xiaobai.workorder.modules.operation.entity.Operation;
 import com.xiaobai.workorder.modules.operation.entity.OperationDependency;
 import com.xiaobai.workorder.modules.operation.repository.OperationDependencyMapper;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
-import com.xiaobai.workorder.modules.report.entity.ReportRecord;
 import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
 import com.xiaobai.workorder.modules.workorder.repository.WorkOrderMapper;
+import com.xiaobai.workorder.modules.workorder.statemachine.WorkOrderStateMachine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,10 +32,11 @@ public class WorkStartService {
     private final WorkOrderMapper workOrderMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final OperationDependencyMapper operationDependencyMapper;
+    private final WorkOrderStateMachine stateMachine;
 
     @Transactional
     @Auditable(operation = "START_WORK", targetType = "OPERATION")
-    public ReportRecord startWork(Long operationId, Long userId) {
+    public void startWork(Long operationId, Long userId) {
         Operation operation = getOperationOrThrow(operationId);
 
         if (!"NOT_STARTED".equals(operation.getStatus())) {
@@ -55,7 +56,6 @@ public class WorkStartService {
         updateWorkOrderStatusOnStart(operation.getWorkOrderId());
 
         log.info("Operation {} started by user {}", operationId, userId);
-        return null;
     }
 
     // ---------------------------------------------------------------
@@ -101,6 +101,9 @@ public class WorkStartService {
     private void updateWorkOrderStatusOnStart(Long workOrderId) {
         WorkOrder workOrder = workOrderMapper.selectById(workOrderId);
         if (workOrder != null && WorkOrderStatus.NOT_STARTED == workOrder.getStatus()) {
+            if (!stateMachine.canTransition(workOrder.getStatus(), WorkOrderStatus.STARTED, workOrder.getOrderType())) {
+                throw new IllegalStateException("Invalid status transition: " + workOrder.getStatus() + " → STARTED");
+            }
             WorkOrderStatus previousStatus = workOrder.getStatus();
             workOrder.setStatus(WorkOrderStatus.STARTED);
             workOrder.setActualStartTime(LocalDateTime.now());

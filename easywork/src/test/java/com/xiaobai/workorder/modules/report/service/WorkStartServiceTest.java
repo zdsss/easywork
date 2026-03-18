@@ -11,6 +11,7 @@ import com.xiaobai.workorder.modules.operation.repository.OperationDependencyMap
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
 import com.xiaobai.workorder.modules.workorder.entity.WorkOrder;
 import com.xiaobai.workorder.modules.workorder.repository.WorkOrderMapper;
+import com.xiaobai.workorder.modules.workorder.statemachine.WorkOrderStateMachine;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -28,14 +29,22 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 class WorkStartServiceTest {
 
     @Mock OperationMapper operationMapper;
     @Mock WorkOrderMapper workOrderMapper;
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock OperationDependencyMapper operationDependencyMapper;
+    @Mock WorkOrderStateMachine stateMachine;
 
     @InjectMocks WorkStartService workStartService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        // Default: state machine allows all transitions (override in individual tests as needed)
+        when(stateMachine.canTransition(any(), any(), any())).thenReturn(true);
+    }
 
     @Test
     void startWork_notStartedOperation_setsStatusToStarted() {

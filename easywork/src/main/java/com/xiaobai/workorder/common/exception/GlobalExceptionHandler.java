@@ -3,6 +3,7 @@ package com.xiaobai.workorder.common.exception;
 import com.xiaobai.workorder.common.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
@@ -50,6 +51,14 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleAccessDeniedException(AccessDeniedException e) {
         log.error("Access denied: {}", e.getMessage());
         return ApiResponse.error(403, "Access denied");
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalStateException(IllegalStateException e) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "Invalid state transition");
+        body.put("message", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
     @ExceptionHandler(Exception.class)

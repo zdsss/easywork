@@ -106,7 +106,7 @@ class DeviceControllerTest {
 
     @Test
     void startWork_validOperationId_returns200() throws Exception {
-        when(workStartService.startWork(anyLong(), anyLong())).thenReturn(null);
+        doNothing().when(workStartService).startWork(anyLong(), anyLong());
 
         mockMvc.perform(post("/api/device/start")
                         .with(user("worker").roles("WORKER"))

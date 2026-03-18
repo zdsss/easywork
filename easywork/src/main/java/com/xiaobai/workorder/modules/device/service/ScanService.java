@@ -107,7 +107,18 @@ public class ScanService {
         Optional<Operation> byOpNumber = operationMapper.findByOperationNumber(barcode);
         if (byOpNumber.isPresent()) {
             Operation op = byOpNumber.get();
-            return new ScanReportResult(op.getWorkOrderId(), op);
+            // Don't report against an already-completed operation
+            if (op != null && ("COMPLETED".equals(op.getStatus()) || "REPORTED".equals(op.getStatus())
+                    || "INSPECTED".equals(op.getStatus()) || "TRANSPORTED".equals(op.getStatus()) || "HANDLED".equals(op.getStatus()))) {
+                op = null; // fall through to work-order path
+            }
+            if (op != null) {
+                return new ScanReportResult(op.getWorkOrderId(), op);
+            }
+            // Operation barcode found but in terminal state: resolve next eligible op from the work order
+            Long workOrderId = byOpNumber.get().getWorkOrderId();
+            Operation nextOp = resolveOperationForReport(userId, workOrderId);
+            return new ScanReportResult(workOrderId, nextOp);
         }
 
         // Fall back to work-order barcode: match by user/team assignment, pick earliest unfinished

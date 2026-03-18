@@ -98,7 +98,8 @@ CREATE TABLE work_orders (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by BIGINT,
-    updated_by BIGINT
+    updated_by BIGINT,
+    CONSTRAINT chk_work_order_status CHECK (status IN ('NOT_STARTED', 'STARTED', 'REPORTED', 'INSPECT_PASSED', 'INSPECT_FAILED', 'SCRAPPED', 'COMPLETED'))
 );
 
 CREATE INDEX idx_work_orders_order_number ON work_orders(order_number);
@@ -126,7 +127,8 @@ CREATE TABLE operations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (work_order_id) REFERENCES work_orders(id),
-    UNIQUE(work_order_id, operation_number)
+    UNIQUE(work_order_id, operation_number),
+    CONSTRAINT chk_operation_status CHECK (status IN ('NOT_STARTED', 'STARTED', 'REPORTED', 'INSPECTED', 'TRANSPORTED', 'HANDLED', 'COMPLETED'))
 );
 
 CREATE INDEX idx_operations_work_order_id ON operations(work_order_id);
