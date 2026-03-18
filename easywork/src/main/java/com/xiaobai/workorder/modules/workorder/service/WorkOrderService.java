@@ -2,6 +2,7 @@ package com.xiaobai.workorder.modules.workorder.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.xiaobai.workorder.common.enums.OperationStatus;
 import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.modules.audit.aspect.Auditable;
 import com.xiaobai.workorder.modules.mesintegration.event.WorkOrderStatusChangedEvent;
@@ -81,7 +82,7 @@ public class WorkOrderService {
                 op.setPlannedQuantity(opInput.getPlannedQuantity() != null
                         ? opInput.getPlannedQuantity() : request.getPlannedQuantity());
                 op.setCompletedQuantity(java.math.BigDecimal.ZERO);
-                op.setStatus("NOT_STARTED");
+                op.setStatus(OperationStatus.NOT_STARTED);
                 op.setStationCode(opInput.getStationCode());
                 op.setStationName(opInput.getStationName());
                 operationMapper.insert(op);
@@ -295,7 +296,7 @@ public class WorkOrderService {
             summary.setSequenceNumber(op.getSequenceNumber());
             summary.setPlannedQuantity(op.getPlannedQuantity());
             summary.setCompletedQuantity(op.getCompletedQuantity());
-            summary.setStatus(op.getStatus());
+            summary.setStatus(op.getStatus() != null ? op.getStatus().name() : null);
             summary.setStationCode(op.getStationCode());
             summary.setStationName(op.getStationName());
             return summary;

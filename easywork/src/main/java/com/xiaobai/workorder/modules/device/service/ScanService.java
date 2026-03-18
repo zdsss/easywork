@@ -1,5 +1,6 @@
 package com.xiaobai.workorder.modules.device.service;
 
+import com.xiaobai.workorder.common.enums.OperationStatus;
 import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.modules.operation.entity.Operation;
 import com.xiaobai.workorder.modules.operation.repository.OperationMapper;
@@ -76,7 +77,7 @@ public class ScanService {
         if (byOpNumber.isPresent()) {
             Operation op = byOpNumber.get();
             // Only return the operation for starting if it is NOT_STARTED; otherwise no-op
-            Operation eligibleOp = "NOT_STARTED".equals(op.getStatus()) ? op : null;
+            Operation eligibleOp = OperationStatus.NOT_STARTED == op.getStatus() ? op : null;
             return new ScanStartResult(op.getWorkOrderId(), eligibleOp);
         }
 
@@ -108,8 +109,8 @@ public class ScanService {
         if (byOpNumber.isPresent()) {
             Operation op = byOpNumber.get();
             // Don't report against an already-completed operation
-            if (op != null && ("COMPLETED".equals(op.getStatus()) || "REPORTED".equals(op.getStatus())
-                    || "INSPECTED".equals(op.getStatus()) || "TRANSPORTED".equals(op.getStatus()) || "HANDLED".equals(op.getStatus()))) {
+            if (op != null && (OperationStatus.COMPLETED == op.getStatus() || OperationStatus.REPORTED == op.getStatus()
+                    || OperationStatus.INSPECTED == op.getStatus() || OperationStatus.TRANSPORTED == op.getStatus() || OperationStatus.HANDLED == op.getStatus())) {
                 op = null; // fall through to work-order path
             }
             if (op != null) {

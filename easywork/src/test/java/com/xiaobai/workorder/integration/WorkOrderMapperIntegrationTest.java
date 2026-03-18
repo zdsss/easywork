@@ -25,9 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Covers the P0 risk from CTO review:
  * "findByDirectUserId and findByTeamMemberId — JOIN SQL never verified against a real DB."
  */
-@SpringBootTest
-@ActiveProfiles("integration-test")
-class WorkOrderMapperIntegrationTest {
+class WorkOrderMapperIntegrationTest extends PostgresIntegrationTestBase {
 
     @Autowired
     JdbcTemplate jdbc;

@@ -2,6 +2,7 @@ package com.xiaobai.workorder.modules.report.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.exceptions.MybatisPlusException;
+import com.xiaobai.workorder.common.enums.OperationStatus;
 import com.xiaobai.workorder.common.enums.WorkOrderStatus;
 import com.xiaobai.workorder.common.enums.WorkOrderType;
 import com.xiaobai.workorder.common.exception.BusinessException;
@@ -55,11 +56,11 @@ public class ReportService {
         boolean forceStart = workOrderProperties.isForceStartBeforeReport(orderType);
 
         if (forceStart) {
-            if (!"STARTED".equals(operation.getStatus())) {
+            if (OperationStatus.STARTED != operation.getStatus()) {
                 throw new BusinessException("Operation must be started before reporting, current status: " + operation.getStatus());
             }
         } else {
-            if (!"STARTED".equals(operation.getStatus()) && !"NOT_STARTED".equals(operation.getStatus())) {
+            if (OperationStatus.STARTED != operation.getStatus() && OperationStatus.NOT_STARTED != operation.getStatus()) {
                 throw new BusinessException("Operation cannot be reported, current status: " + operation.getStatus());
             }
         }
@@ -104,9 +105,9 @@ public class ReportService {
         BigDecimal newCompleted = alreadyReported.add(toReport);
         operation.setCompletedQuantity(newCompleted);
         if (newCompleted.compareTo(operation.getPlannedQuantity()) >= 0) {
-            operation.setStatus("REPORTED");
+            operation.setStatus(OperationStatus.REPORTED);
         } else {
-            operation.setStatus("STARTED");
+            operation.setStatus(OperationStatus.STARTED);
         }
         operationMapper.updateById(operation);
 
@@ -140,9 +141,9 @@ public class ReportService {
                 .sumReportedQuantityByOperationId(operation.getId());
         operation.setCompletedQuantity(newCompleted);
         if (newCompleted.compareTo(BigDecimal.ZERO) == 0) {
-            operation.setStatus("NOT_STARTED");
+            operation.setStatus(OperationStatus.NOT_STARTED);
         } else {
-            operation.setStatus("STARTED");
+            operation.setStatus(OperationStatus.STARTED);
         }
         operationMapper.updateById(operation);
 
@@ -178,10 +179,10 @@ public class ReportService {
 
         List<Operation> operations = operationMapper.findByWorkOrderId(workOrderId);
         boolean allReported = operations.stream()
-                .allMatch(op -> "REPORTED".equals(op.getStatus())
-                        || "INSPECTED".equals(op.getStatus())
-                        || "TRANSPORTED".equals(op.getStatus())
-                        || "HANDLED".equals(op.getStatus()));
+                .allMatch(op -> OperationStatus.REPORTED == op.getStatus()
+                        || OperationStatus.INSPECTED == op.getStatus()
+                        || OperationStatus.TRANSPORTED == op.getStatus()
+                        || OperationStatus.HANDLED == op.getStatus());
 
         if (allReported) {
             WorkOrderStatus previousStatus = workOrder.getStatus();

@@ -64,6 +64,19 @@ logging:
     max-size: 10MB
     max-history: 30
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
 springdoc:
   api-docs:
     path: /api-docs
@@ -89,6 +102,8 @@ app:
     rate-limit:
       login-max-requests: 10
       login-window-seconds: 60
+      device-max-requests: 60
+      device-window-seconds: 60
 
   # Work order behavior: per-type force-start-before-report flag.
   # When true for a given order type, workers must call startWork before reportWork.

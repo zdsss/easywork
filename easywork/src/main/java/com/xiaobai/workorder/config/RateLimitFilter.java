@@ -21,14 +21,26 @@ import java.time.Duration;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final String LOGIN_PATH = "/api/auth/login";
+    private static final String DEVICE_PATH_PREFIX = "/api/device/";
 
     @Value("${app.security.rate-limit.login-max-requests:10}")
-    private int maxRequests;
+    private int loginMaxRequests;
 
     @Value("${app.security.rate-limit.login-window-seconds:60}")
-    private int windowSeconds;
+    private int loginWindowSeconds;
 
-    private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
+    @Value("${app.security.rate-limit.device-max-requests:60}")
+    private int deviceMaxRequests;
+
+    @Value("${app.security.rate-limit.device-window-seconds:60}")
+    private int deviceWindowSeconds;
+
+    private final Cache<String, Bucket> loginBuckets = Caffeine.newBuilder()
+            .expireAfterAccess(Duration.ofMinutes(10))
+            .maximumSize(100_000)
+            .build();
+
+    private final Cache<String, Bucket> deviceBuckets = Caffeine.newBuilder()
             .expireAfterAccess(Duration.ofMinutes(10))
             .maximumSize(100_000)
             .build();
@@ -36,27 +48,37 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                      FilterChain filterChain) throws ServletException, IOException {
-        if (!LOGIN_PATH.equals(request.getRequestURI()) || !"POST".equals(request.getMethod())) {
-            filterChain.doFilter(request, response);
-            return;
+        String uri = request.getRequestURI();
+
+        if (LOGIN_PATH.equals(uri) && "POST".equals(request.getMethod())) {
+            String ip = getClientIp(request);
+            Bucket bucket = loginBuckets.get(ip, k -> createBucket(loginMaxRequests, loginWindowSeconds));
+            if (!bucket.tryConsume(1)) {
+                rejectTooManyRequests(response, "Too many login attempts. Please try again later.");
+                return;
+            }
+        } else if (uri.startsWith(DEVICE_PATH_PREFIX)) {
+            String ip = getClientIp(request);
+            Bucket bucket = deviceBuckets.get(ip, k -> createBucket(deviceMaxRequests, deviceWindowSeconds));
+            if (!bucket.tryConsume(1)) {
+                rejectTooManyRequests(response, "Too many requests. Please slow down.");
+                return;
+            }
         }
 
-        String ip = getClientIp(request);
-        Bucket bucket = buckets.get(ip, k -> createBucket());
-
-        if (bucket.tryConsume(1)) {
-            filterChain.doFilter(request, response);
-        } else {
-            response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getWriter().write("{\"error\":\"Too many login attempts. Please try again later.\"}");
-        }
+        filterChain.doFilter(request, response);
     }
 
-    private Bucket createBucket() {
+    private void rejectTooManyRequests(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getWriter().write("{\"error\":\"" + message + "\"}");
+    }
+
+    private Bucket createBucket(int capacity, int windowSeconds) {
         Bandwidth limit = Bandwidth.builder()
-                .capacity(this.maxRequests)
-                .refillIntervally(this.maxRequests, Duration.ofSeconds(this.windowSeconds))
+                .capacity(capacity)
+                .refillIntervally(capacity, Duration.ofSeconds(windowSeconds))
                 .build();
         return Bucket.builder().addLimit(limit).build();
     }

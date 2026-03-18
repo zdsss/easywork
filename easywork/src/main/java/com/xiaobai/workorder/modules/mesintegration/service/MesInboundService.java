@@ -1,5 +1,6 @@
 package com.xiaobai.workorder.modules.mesintegration.service;
 
+import com.xiaobai.workorder.common.enums.OperationStatus;
 import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.modules.mesintegration.constant.MesSyncDirection;
 import com.xiaobai.workorder.modules.mesintegration.constant.MesSyncStatus;
@@ -144,7 +145,7 @@ public class MesInboundService {
         op.setPlannedQuantity(input.getPlannedQuantity() != null
                 ? input.getPlannedQuantity() : workOrder.getPlannedQuantity());
         op.setCompletedQuantity(BigDecimal.ZERO);
-        op.setStatus("NOT_STARTED");
+        op.setStatus(OperationStatus.NOT_STARTED);
         op.setStationCode(input.getStationCode());
         op.setStationName(input.getStationName());
         return op;

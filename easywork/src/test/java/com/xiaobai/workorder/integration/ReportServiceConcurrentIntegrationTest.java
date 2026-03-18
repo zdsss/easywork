@@ -32,9 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Covers the P0 risk from CTO review:
  * "check-then-act race condition in ReportService.reportWork()"
  */
-@SpringBootTest
-@ActiveProfiles("integration-test")
-class ReportServiceConcurrentIntegrationTest {
+class ReportServiceConcurrentIntegrationTest extends PostgresIntegrationTestBase {
 
     @Autowired
     JdbcTemplate jdbc;

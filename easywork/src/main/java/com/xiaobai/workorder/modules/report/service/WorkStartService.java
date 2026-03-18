@@ -3,6 +3,7 @@ package com.xiaobai.workorder.modules.report.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.exceptions.MybatisPlusException;
 import com.xiaobai.workorder.common.enums.DependencyType;
+import com.xiaobai.workorder.common.enums.OperationStatus;
 import com.xiaobai.workorder.common.enums.WorkOrderStatus;
 import com.xiaobai.workorder.common.exception.BusinessException;
 import com.xiaobai.workorder.modules.audit.aspect.Auditable;
@@ -39,14 +40,14 @@ public class WorkStartService {
     public void startWork(Long operationId, Long userId) {
         Operation operation = getOperationOrThrow(operationId);
 
-        if (!"NOT_STARTED".equals(operation.getStatus())) {
+        if (OperationStatus.NOT_STARTED != operation.getStatus()) {
             throw new BusinessException("Operation cannot be started, current status: " + operation.getStatus());
         }
 
         // Check SERIAL predecessor completion before allowing start
         checkPredecessors(operation);
 
-        operation.setStatus("STARTED");
+        operation.setStatus(OperationStatus.STARTED);
         try {
             operationMapper.updateById(operation);
         } catch (MybatisPlusException e) {
@@ -88,10 +89,10 @@ public class WorkStartService {
             if (predecessor == null || predecessor.getDeleted() == 1) {
                 continue; // Predecessor deleted or not found, skip
             }
-            String pStatus = predecessor.getStatus();
-            if (!"REPORTED".equals(pStatus) && !"COMPLETED".equals(pStatus)
-                    && !"INSPECTED".equals(pStatus) && !"TRANSPORTED".equals(pStatus)
-                    && !"HANDLED".equals(pStatus)) {
+            OperationStatus pStatus = predecessor.getStatus();
+            if (OperationStatus.REPORTED != pStatus && OperationStatus.COMPLETED != pStatus
+                    && OperationStatus.INSPECTED != pStatus && OperationStatus.TRANSPORTED != pStatus
+                    && OperationStatus.HANDLED != pStatus) {
                 throw new BusinessException(
                         "前置工序 [" + predecessor.getOperationName() + "] 尚未完成，无法开工");
             }

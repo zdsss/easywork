@@ -168,7 +168,7 @@ class WorkStartServiceTest {
     // Helpers
     // ---------------------------------------------------------------
 
-    private Operation buildOperation(Long id, Long workOrderId, String status, BigDecimal plannedQty) {
+    private Operation buildOperation(Long id, Long workOrderId, OperationStatus status, BigDecimal plannedQty) {
         Operation op = new Operation();
         op.setId(id);
         op.setWorkOrderId(workOrderId);

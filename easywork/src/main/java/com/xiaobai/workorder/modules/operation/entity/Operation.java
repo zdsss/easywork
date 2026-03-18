@@ -1,6 +1,7 @@
 package com.xiaobai.workorder.modules.operation.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.xiaobai.workorder.common.enums.OperationStatus;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -20,7 +21,7 @@ public class Operation {
     private Integer sequenceNumber;
     private BigDecimal plannedQuantity;
     private BigDecimal completedQuantity;
-    private String status;
+    private OperationStatus status;
     private Integer standardTime;
     private Integer actualTime;
     private String stationCode;

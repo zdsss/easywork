@@ -14,13 +14,74 @@ services:
     networks:
       - workorder-network
 
-  redis:
+  redis-master:
     image: redis:7-alpine
-    container_name: workorder-redis
+    container_name: workorder-redis-master
+    command: redis-server --save 60 1 --loglevel warning
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - redis_master_data:/data
+    networks:
+      - workorder-network
+
+  redis-replica:
+    image: redis:7-alpine
+    container_name: workorder-redis-replica
+    command: redis-server --replicaof redis-master 6379 --loglevel warning
+    depends_on:
+      - redis-master
+    networks:
+      - workorder-network
+
+  redis-sentinel-1:
+    image: redis:7-alpine
+    container_name: workorder-redis-sentinel-1
+    command: >
+      sh -c "echo 'sentinel monitor mymaster redis-master 6379 2' > /tmp/sentinel.conf &&
+             echo 'sentinel down-after-milliseconds mymaster 5000' >> /tmp/sentinel.conf &&
+             echo 'sentinel failover-timeout mymaster 10000' >> /tmp/sentinel.conf &&
+             echo 'sentinel parallel-syncs mymaster 1' >> /tmp/sentinel.conf &&
+             redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26379:26379"
+    depends_on:
+      - redis-master
+      - redis-replica
+    networks:
+      - workorder-network
+
+  redis-sentinel-2:
+    image: redis:7-alpine
+    container_name: workorder-redis-sentinel-2
+    command: >
+      sh -c "echo 'sentinel monitor mymaster redis-master 6379 2' > /tmp/sentinel.conf &&
+             echo 'sentinel down-after-milliseconds mymaster 5000' >> /tmp/sentinel.conf &&
+             echo 'sentinel failover-timeout mymaster 10000' >> /tmp/sentinel.conf &&
+             echo 'sentinel parallel-syncs mymaster 1' >> /tmp/sentinel.conf &&
+             redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26380:26379"
+    depends_on:
+      - redis-master
+      - redis-replica
+    networks:
+      - workorder-network
+
+  redis-sentinel-3:
+    image: redis:7-alpine
+    container_name: workorder-redis-sentinel-3
+    command: >
+      sh -c "echo 'sentinel monitor mymaster redis-master 6379 2' > /tmp/sentinel.conf &&
+             echo 'sentinel down-after-milliseconds mymaster 5000' >> /tmp/sentinel.conf &&
+             echo 'sentinel failover-timeout mymaster 10000' >> /tmp/sentinel.conf &&
+             echo 'sentinel parallel-syncs mymaster 1' >> /tmp/sentinel.conf &&
+             redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26381:26379"
+    depends_on:
+      - redis-master
+      - redis-replica
     networks:
       - workorder-network
 
@@ -35,16 +96,20 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/workorder_db
       SPRING_DATASOURCE_USERNAME: workorder_user
       SPRING_DATASOURCE_PASSWORD: workorder_pass
-      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_SENTINEL_MASTER: mymaster
+      SPRING_DATA_REDIS_SENTINEL_NODES: redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379
     depends_on:
       - postgres
-      - redis
+      - redis-master
+      - redis-sentinel-1
+      - redis-sentinel-2
+      - redis-sentinel-3
     networks:
       - workorder-network
 
 volumes:
   postgres_data:
-  redis_data:
+  redis_master_data:
 
 networks:
   workorder-network:
