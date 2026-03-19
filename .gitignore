@@ -20,6 +20,11 @@ easywork-admin/node_modules/
 easywork-worker/node_modules/
 easywork-admin/dist/
 easywork-worker/dist/
+utils/node_modules/
+utils/browsers/
+utils/pw-browsers/
+utils/.playwright/
+utils/screenshots/
 
 # Env
 .env
@@ -32,3 +37,6 @@ easywork-worker/dist/
 
 # Git worktrees
 .worktrees/
+
+# Windows reserved device name (cannot be committed)
+NUL
