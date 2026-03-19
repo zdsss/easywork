@@ -1,6 +1,6 @@
 # XiaoBai Easy WorkOrder System — 项目总览
 
-> 最后更新：2026-03-17
+> 最后更新：2026-03-19
 
 ---
 
@@ -36,14 +36,19 @@
 │  │  Spring  │ │ MyBatis  │ │  Spring Security  │  │
 │  │ Security │ │  Plus    │ │   JWT (24h)       │  │
 │  └──────────┘ └──────────┘ └──────────────────┘  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────────────┐  │
+│  │ Bucket4j │ │ Caffeine │ │  WorkOrderState   │  │
+│  │(限流429) │ │(统计缓存)│ │    Machine        │  │
+│  └──────────┘ └──────────┘ └──────────────────┘  │
 └────────────┬──────────────────────────────────────┘
              │
     ┌────────┴────────┐
     ▼                 ▼
-┌──────────┐    ┌──────────┐
-│PostgreSQL│    │  Redis   │
-│  :5432   │    │  :6379   │
-└──────────┘    └──────────┘
+┌──────────┐    ┌──────────────────────────┐
+│PostgreSQL│    │  Redis Sentinel 集群      │
+│  :5432   │    │  master:6379             │
+└──────────┘    │  sentinel×3: 26379-26381 │
+                └──────────────────────────┘
 ```
 
 ---
@@ -71,6 +76,8 @@ REPORTED ──── 工人「撤销」POST /device/report/undo ──► START
 NOT_STARTED → STARTED → COMPLETED（报工即完成，不走质检流程）
 ```
 
+状态转换规则由 `WorkOrderStateMachine`（`modules/workorder/statemachine`）集中管理，提供 `canTransition` / `allowedTransitions` 方法供各 Service 调用。
+
 ---
 
 ## 四、API 权限规则
@@ -81,6 +88,15 @@ NOT_STARTED → STARTED → COMPLETED（报工即完成，不走质检流程）
 | `/api/device/**` | WORKER 或 ADMIN | 工人端接口 |
 | `/api/admin/**` | ADMIN | 管理端接口 |
 | `/api/mes/**` | ADMIN | MES 外部推送接口 |
+
+**限流规则（`RateLimitFilter` / Bucket4j）：**
+
+| 接口 | 限制 | 超限响应 |
+|------|------|---------|
+| `POST /api/auth/login` | 10 次/分钟/IP | HTTP 429 |
+| `POST /api/device/**` | 60 次/分钟/IP | HTTP 429 |
+
+配置项：`app.rate-limit.login-max-requests` / `app.rate-limit.device-max-requests`（等）
 
 ---
 
@@ -222,7 +238,7 @@ operations[]: { id, operationName, operationNumber, sequenceNumber, status, plan
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/admin/statistics/dashboard` | 统计看板 |
+| GET | `/api/admin/statistics/dashboard` | 统计看板（结果 Caffeine 缓存 TTL 30s） |
 
 **响应 data 字段：**
 ```
@@ -241,7 +257,7 @@ overallCompletionRate / typeStats[] / workerStats[]
 | GET | `/api/admin/mes-integration/stats` | MES 同步统计 |
 | GET | `/api/admin/mes-integration/logs?page=1&size=20&direction=&status=&syncType=` | 同步日志（**分页**，返回 `{records,total,current,size,pages}`） |
 
-> MES 默认关闭（`app.mes.integration.enabled: false`）
+> MES 默认关闭（`app.mes.integration.enabled: false`）；失败重试使用指数退避（5s→10s→…→300s，最多 5 次）
 
 ---
 
@@ -251,15 +267,15 @@ overallCompletionRate / typeStats[] / workerStats[]
 |------|------|------|
 | POST | `/api/device/login` | 工人端专用登录（同 auth/login，可带 deviceCode） |
 | GET | `/api/device/work-orders` | 获取当前工人被派工的工单（Array） |
-| POST | `/api/device/start` | 开工 |
-| POST | `/api/device/report` | 报工 |
+| POST | `/api/device/start` | 开工（委托 `WorkStartService`） |
+| POST | `/api/device/report` | 报工（委托 `ReportService`） |
 | POST | `/api/device/report/undo` | 撤销报工 |
 | POST | `/api/device/inspect` | 提交质检（检验员在工人端使用） |
 | POST | `/api/device/call/andon` | Andon 呼叫 |
 | POST | `/api/device/call/inspection` | 质检呼叫 |
 | POST | `/api/device/call/transport` | 搬运呼叫 |
-| POST | `/api/device/scan/start` | 条码扫描开工（工单号/工序号双模式，自动匹配最早未开工工序） |
-| POST | `/api/device/scan/report` | 条码扫描报工 |
+| POST | `/api/device/scan/start` | 条码扫描开工（工单号/工序号双模式，`ScanService` 解析） |
+| POST | `/api/device/scan/report` | 条码扫描报工（`ScanService` 解析） |
 | POST | `/api/device/batch/start` | 批量开工（支持幂等 Key） |
 | POST | `/api/device/batch/report` | 批量报工（支持幂等 Key） |
 
@@ -377,7 +393,7 @@ easywork-worker/
 ├── src/
 │   ├── composables/
 │   │   ├── useHardwareInput.js  # 硬件输入层：扫码枪识别（50ms）/ 方向键 / 快捷键 / ESC
-│   │   └── usePhysicalKeys.js   # 原始键盘层（TestView 使用）
+│   │   └── usePhysicalKeys.js   # 原始键盘层（兼容保留）
 │   ├── utils/
 │   │   ├── statusLabel.js  # orderType × status → 中文标签 + Vant tag 类型
 │   │   └── offlineQueue.js # IndexedDB 离线队列（断网排队/联网重放）
@@ -398,9 +414,9 @@ easywork-worker/
 ## 九、启动方式
 
 ```powershell
-# Step 1：启动数据库（PostgreSQL + Redis，在 easywork\ 目录下执行）
+# Step 1：启动数据库（PostgreSQL + Redis 单节点，在 easywork\ 目录下执行）
 cd easywork
-& "C:\Program Files\Docker\Docker\resources\bin\docker.exe" compose up -d postgres redis
+& "C:\Program Files\Docker\Docker\resources\bin\docker.exe" compose up -d postgres redis-master
 
 # Step 2：启动后端（新终端，在 easywork\ 目录下执行）
 $env:JAVA_HOME="D:\Software\Java21"; & "D:\Software\apache-maven-3.9.13\bin\mvn" spring-boot:run
@@ -435,32 +451,37 @@ npm run dev   # → http://localhost:5174
 | 工人端工单详情 | 无 `GET /device/work-orders/:id`，通过列表数据本地查找 |
 | MES 集成 | 默认关闭，配置 `app.mes.integration.enabled=true` 启用 |
 | deviceCode | `/device/login` 支持但需数据库中存在对应设备记录 |
-| 条码扫描 | 后端双模式（工单号/工序号）；前端支持摄像头 + 扫码枪 + 手动输入 |
+| 条码扫描 | `ScanService` 处理双模式（工单号/工序号）解析；前端支持摄像头 + 扫码枪 + 手动输入 |
 | Node.js 版本 | 前端 Vite 5.x 要求 Node.js 18+（LTS）；不要升级 Vite 到 7.x |
 | 分页 | 仅 MES logs 返回分页对象；其余列表接口返回 Array |
 | 强制开工配置 | `app.workorder.force-start-before-report` 支持按 orderType 配置（map 结构） |
 | 工序依赖执行 | 仅 SERIAL 类型前置工序阻塞开工；PARALLEL 不阻塞 |
 | 幂等性 | 批量操作支持 `Idempotency-Key` 请求头（UUID）；Redis 缓存 30min |
-| Flyway | V1.x SQL 自动应用（`baseline-on-migrate: true`，`baseline-version: 1.6`）|
+| Flyway | 当前最高版本 V1.9（性能索引）；`baseline-on-migrate: true`，`baseline-version: 1.6` |
+| Redis 生产部署 | docker-compose 含 Redis Sentinel 集群（3 哨兵 + 主从）；本地开发使用 `redis-master` 单节点即可 |
+| 集成测试 | 使用 Testcontainers 自动启动 PostgreSQL，无需手动 `docker compose up`；`mvn test -Dgroups=integration` |
 
 ---
 
 ## 十二、测试状态
 
-**单元测试：** 140 个，全部通过 ✅（2026-03-17）
+**单元测试：** 165 个，全部通过 ✅（2026-03-19）
 
-**集成测试：** 7 个（需 Docker PostgreSQL，`@ActiveProfiles("integration-test")`）
+**集成测试：** 2 个（Testcontainers 自动启动 PostgreSQL，`@Tag("integration")`）
 
-**测试框架：** JUnit 5 + Mockito + Spring Boot Test
+**测试框架：** JUnit 5 + Mockito + Spring Boot Test + Testcontainers
 
 | 测试类 | 覆盖重点 |
 |--------|---------|
-| ReportServiceTest | 报工状态机（多 orderType + 前置依赖检查 + 撤销） |
+| WorkStartServiceTest | 开工逻辑（NOT_STARTED 检查 + 工序依赖 SERIAL/PARALLEL + 工单首次开工） |
+| ReportServiceTest | 报工状态机（报工量校验 + 完工判断 + 撤销 + 事件发布） |
+| ScanServiceTest | 条码解析（工单号/工序号双模式 + 最早未开工工序匹配） |
+| WorkOrderStateMachineTest | 状态转换规则（PRODUCTION/INSPECTION/TRANSPORT/ANDON 全矩阵） |
 | WorkOrderServiceTest | 工单生命周期（创建/派工/完成/返工/去重排序） |
 | InspectionServiceTest | 质检结果分支（PASSED/FAILED/REWORK/SCRAP + 事件发布） |
-| DeviceControllerTest | BFF 层 HTTP + 权限控制 + 扫码匹配逻辑 |
-| WorkOrderMapperIntegrationTest | Mapper 层集成（需 PostgreSQL） |
-| ReportServiceConcurrentIntegrationTest | 并发报工（需 PostgreSQL） |
+| DeviceControllerTest | BFF 层 HTTP + 权限控制 |
+| WorkOrderMapperIntegrationTest | Mapper 层集成（需 Testcontainers PostgreSQL） |
+| ReportServiceConcurrentIntegrationTest | 并发报工（需 Testcontainers PostgreSQL） |
 
 **端到端流程验证：**
 - `NOT_STARTED → STARTED → REPORTED → INSPECT_PASSED → COMPLETED` ✅
@@ -474,6 +495,33 @@ npm run dev   # → http://localhost:5174
 
 ## 十三、更新历史
 
+### 2026-03-19 — 工具目录 & .gitignore
+
+| 内容 |
+|------|
+| 新增 `utils/` 目录：Playwright 截图/PDF 报告工具（`take_screenshots.js`、`generate_pdf.js`、`current_state_report.md/pdf`） |
+| 更新 `.gitignore`：排除 `utils/node_modules/`、`utils/browsers/`、`utils/pw-browsers/`、`utils/.playwright/`、`utils/screenshots/` |
+| 移除 `.github/workflows/ci.yml`（CI 工作流） |
+
+### 2026-03-18 — CTO 审查 P0/P1 加固
+
+| 编号 | 内容 |
+|------|------|
+| P0 | 删除 `common/constant` 死代码包（3 个重复 enum） |
+| P1-A | 拆分 `ReportService` → `WorkStartService`（开工/依赖检查）+ `ReportService`（报工/撤销） |
+| P1-B | 拆分 `DeviceController` → `ScanService`（条码解析）+ 薄层控制器 |
+| P1-C | 新增 `WorkOrderStateMachine`（集中状态转换规则，替代各 Service 中分散的 if/switch） |
+| P1-D | 新增 `OperationStatus` Java Enum（替代 `Operation.status` String 字段） |
+| P1-E | Flyway V1.8：`work_orders` / `operations` 状态列添加 CHECK 约束 |
+| P1-F | Flyway V1.9：`work_orders`、`operations`、`report_records` 添加性能索引 |
+| P2-A | Redis Sentinel 集群配置（docker-compose：3 哨兵 + 主从） |
+| P2-B | Prometheus 指标端点（`/actuator/prometheus`） |
+| P2-C | Testcontainers 替代手动 Docker 用于集成测试；集成测试通过 `@Tag("integration")` 隔离 |
+| P2-D | `StatisticsService` Caffeine 缓存（TTL 30s） |
+| P2-E | MES 重试改为指数退避（5s→10s→…→300s，最多 5 次） |
+| P2-F | 登录端点 Bucket4j 限速（10次/分钟/IP，返回 HTTP 429） |
+| 修复 | 解决所有测试编译错误（`OperationStatus` 导入、stub 参数不匹配）；单元测试总数 140 → 165 |
+
 ### 2026-03-17 — CTO 审查 v2 优化（Q 系列 + N 系列 + C 系列）
 
 | 编号 | 内容 |
@@ -482,8 +530,8 @@ npm run dev   # → http://localhost:5174
 | Q-2 | `WorkOrderStatus` / `WorkOrderType` / `DependencyType` 提取为 Java Enum + `EnumTypeHandler`，消除字符串字面量 |
 | Q-3 | 批量操作幂等：工人端生成 UUID 作为 `Idempotency-Key`，`IdempotencyService` Redis 缓存 30 分钟结果 |
 | Q-4 | JWT secret 强制环境变量注入（移除默认值，启动失败优于弱密钥） |
-| N-1 | 实现"让步接收"质检结果（`ACCEPT_WITH_CONCESSION`）：后端枚举分支 + 工人端按钮 + 状态标签 |
-| N-3 | 工人端批量操作快捷键：列表页数字键 `1`=全部开工 / `2`=全部报工，直接调用 `BatchView` 逻辑 |
+| N-1 | 实现\"让步接收\"质检结果（`ACCEPT_WITH_CONCESSION`）：后端枚举分支 + 工人端按钮 + 状态标签 |
+| N-3 | 工人端批量操作快捷键：列表页数字键 `1`=全部开工 / `2`=全部报工 |
 | C-1 | CONDITIONAL 依赖类型彻底移除（后端枚举 + Mapper XML + 管理端 UI 全部清理） |
 | C-2 | 强制开工配置改为按 `orderType` 的 map 结构（替代全局 bool） |
 
